@@ -1,0 +1,1765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evolution Simulator</title>
+    <style>
+        :root {
+            --primary: #4a6fa5;
+            --success: #4caf50;
+            --warning: #ff9800;
+            --error: #f44336;
+            --info: #2196f3;
+            --bg-dark: #1a1a1a;
+            --bg-light: #2d2d2d;
+            --text: #ffffff;
+            --text-muted: #b0b0b0;
+            --border: #444;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg-dark);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .container {
+            max-width: 1000px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        h1 {
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .subtitle {
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+        
+        .status {
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        
+        .status.info {
+            background-color: rgba(33, 150, 243, 0.1);
+            border-left: 4px solid var(--info);
+            color: var(--info);
+        }
+        
+        .status.success {
+            background-color: rgba(76, 175, 80, 0.1);
+            border-left: 4px solid var(--success);
+            color: var(--success);
+        }
+        
+        .status.warning {
+            background-color: rgba(255, 152, 0, 0.1);
+            border-left: 4px solid var(--warning);
+            color: var(--warning);
+        }
+        
+        .status.error {
+            background-color: rgba(244, 67, 54, 0.1);
+            border-left: 4px solid var(--error);
+            color: var(--error);
+        }
+        
+        /* Console output styles */
+        .output {
+            font-family: 'Courier New', monospace;
+            background-color: #1e1e1e;
+            color: #00ff00;
+            padding: 10px;
+            border-radius: 4px;
+            height: 200px;
+            overflow-y: auto;
+            margin: 1rem 0;
+            white-space: pre;
+            word-break: normal;
+            border: 1px solid #333;
+            font-size: 14px;
+            line-height: 1.4;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+        
+        .canvas-container {
+            margin: 1rem 0;
+            text-align: center;
+            width: 100%;
+        }
+        
+        canvas {
+            max-width: 100%;
+            border: 1px solid var(--border);
+            background-color: #000;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 0.5rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            background-color: var(--primary);
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 1rem;
+        }
+        
+        button:hover {
+            opacity: 0.9;
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .log-entry {
+            padding: 2px 0;
+            font-family: 'Courier New', monospace;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        .log-time {
+            color: #00ff00;
+            opacity: 0.7;
+            margin-right: 8px;
+            display: inline-block;
+            min-width: 80px;
+        }
+        
+        .log-message {
+            display: inline;
+        }
+        
+        .log-error {
+            color: #ff4d4d;
+        }
+        
+        .log-warning {
+            color: #ffcc00;
+        }
+        
+        .log-info {
+            color: #00ccff;
+        }
+        
+        .log-success {
+            color: #00ff00;
+        }
+        
+        .log-debug {
+            color: #cccccc;
+            opacity: 0.7;
+        }
+        
+        /* Main Menu Styles */
+        .menu-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a192f 0%, #1a365d 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .menu-content {
+            text-align: center;
+            padding: 2rem;
+            background: rgba(26, 32, 44, 0.9);
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+            max-width: 500px;
+            width: 90%;
+        }
+        
+        .menu-content h1 {
+            color: #00ff88;
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+            letter-spacing: 2px;
+        }
+        
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .menu-button {
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            border: 2px solid #00ff88;
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .menu-button:hover {
+            background: rgba(0, 255, 136, 0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 255, 136, 0.3);
+        }
+        
+        .version {
+            color: #4a5568;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal-content {
+            background-color: #1e1e2e;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 5px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid #444;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid #444;
+            background-color: #2d2d42;
+            border-radius: 10px 10px 0 0;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            color: #00ff88;
+            font-size: 1.5rem;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 1.8rem;
+            cursor: pointer;
+            padding: 0 10px;
+            line-height: 1;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        
+        .close-btn:hover {
+            opacity: 1;
+        }
+        
+        .saves-list {
+            padding: 20px;
+        }
+        
+        .save-item {
+            background-color: #2a2a3a;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border: 1px solid #444;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .save-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            border-color: #00ff88;
+        }
+        
+        .save-name {
+            font-weight: bold;
+            color: #fff;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+        }
+        
+        .save-date {
+            color: #aaa;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+        
+        .save-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .save-actions button {
+            padding: 5px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        
+        .load-btn {
+            background-color: #4caf50;
+            color: white;
+        }
+        
+        .load-btn:hover {
+            background-color: #3e8e41;
+        }
+        
+        .delete-btn {
+            background-color: #f44336;
+            color: white;
+        }
+        
+        .delete-btn:hover {
+            background-color: #d32f2f;
+        }
+        
+        .no-saves {
+            text-align: center;
+            color: #888;
+            padding: 20px;
+            font-style: italic;
+        }
+        
+        /* Terminal-like console output for diagnosis page */
+        #output {
+            font-family: 'Courier New', monospace;
+            background-color: #1e1e1e;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 5px;
+            height: 300px;
+            overflow-y: auto;
+            white-space: pre;
+            font-size: 14px;
+            line-height: 1.4;
+            border: 1px solid #333;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+        
+        .log-entry {
+            margin: 0;
+            padding: 2px 0;
+            line-height: 1.4;
+            font-family: 'Courier New', monospace;
+            white-space: pre;
+        }
+        
+        .log-time {
+            color: #00ff00;
+            opacity: 0.7;
+            display: inline-block;
+            min-width: 100px;
+        }
+        
+        .log-message {
+            display: inline;
+            word-break: break-all;
+            white-space: pre-wrap;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                width: 100%;
+            }
+            
+            button {
+                width: 100%;
+            }
+        }
+        }
+        
+        #loading {
+            text-align: center;
+            font-size: 1.2em;
+            margin: 20px 0;
+        }
+        
+        #status {
+            margin-top: 10px;
+    </style>
+</head>
+<body>
+    <!-- Main Menu -->
+    <div id="main-menu" class="menu-container">
+        <div class="menu-content">
+            <h1>EVOLUTION SIMULATOR</h1>
+            <div class="menu-buttons">
+                <button id="new-game-btn" class="menu-button">NEW GAME</button>
+                <button id="load-game-btn" class="menu-button">LOAD GAME</button>
+                <button id="settings-btn" class="menu-button">SETTINGS</button>
+                <button id="quit-btn" class="menu-button">QUIT</button>
+            </div>
+            <div class="version">v1.0.0</div>
+        </div>
+    </div>
+
+    <!-- Game Container (initially hidden) -->
+    <div id="game-container" class="hidden">
+        <div class="container">
+            <header>
+                <h1>Evolution Simulator</h1>
+                <p class="subtitle">Natural Selection in Action</p>
+            </header>
+        
+        <div id="status" class="status info">Initializing WebAssembly module...</div>
+        
+        <div class="canvas-container">
+            <canvas id="canvas" width="800" height="600"></canvas>
+        </div>
+        
+        <div class="controls">
+            <button id="start-btn" disabled>Start Simulation</button>
+            <button id="pause-btn" disabled>Pause</button>
+            <button id="reset-btn">Reset</button>
+            <button id="diagnostics-btn" onclick="window.location.href='/diagnosis.html'">Open Diagnostics</button>
+        </div>
+        
+        <h2>Simulation Output</h2>
+        <div id="output" class="output"></div>
+    </div>
+    
+    <!-- Load the Emscripten module -->
+    <script>
+        // Global error handler to catch unhandled errors
+        window.addEventListener('error', function(event) {
+            const errorMsg = `Unhandled error: ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`;
+            console.error(errorMsg, event.error);
+            
+            // Try to log to the in-app console if it's available
+            try {
+                if (window.log) {
+                    window.log(errorMsg, 'error');
+                }
+                if (window.setStatus) {
+                    window.setStatus(errorMsg, 'error');
+                }
+            } catch (e) {
+                console.error('Error in error handler:', e);
+            }
+            
+            // Don't prevent default handling (will still show in browser console)
+        });
+        
+        // Handle unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(event) {
+            const error = event.reason || 'Unknown error';
+            const errorMsg = `Unhandled promise rejection: ${error}`;
+            console.error(errorMsg);
+            
+            try {
+                if (window.log) {
+                    window.log(errorMsg, 'error');
+                }
+            } catch (e) {
+                console.error('Error in promise rejection handler:', e);
+            }
+        });
+        
+        // Make log and setStatus globally available for error handling
+        window.log = log;
+        window.setStatus = setStatus;
+        // Global variables for DOM elements
+        let mainMenu, gameContainer, outputEl, statusEl, startBtn, pauseBtn, resetBtn;
+        let newGameBtn, loadGameBtn, settingsBtn, quitBtn;
+        
+        // Logging system
+        const logs = [];
+        
+        // Initialize DOM elements
+        function initElements() {
+            mainMenu = document.getElementById('main-menu');
+            gameContainer = document.getElementById('game-container');
+            outputEl = document.getElementById('output');
+            statusEl = document.getElementById('status');
+            startBtn = document.getElementById('start-btn');
+            pauseBtn = document.getElementById('pause-btn');
+            resetBtn = document.getElementById('reset-btn');
+            newGameBtn = document.getElementById('new-game-btn');
+            loadGameBtn = document.getElementById('load-game-btn');
+            settingsBtn = document.getElementById('settings-btn');
+            quitBtn = document.getElementById('quit-btn');
+            
+            // Log which elements were found
+            console.log('Initialized elements:', {
+                startBtn: !!startBtn,
+                pauseBtn: !!pauseBtn,
+                resetBtn: !!resetBtn,
+                newGameBtn: !!newGameBtn,
+                loadGameBtn: !!loadGameBtn,
+                settingsBtn: !!settingsBtn,
+                quitBtn: !!quitBtn
+            });
+        }
+        
+        function setupButtonListeners() {
+            console.log('Setting up button listeners...');
+            
+            // New Game Button
+            if (newGameBtn) {
+                newGameBtn.addEventListener('click', startNewGame);
+                console.log('New Game button listener added');
+            }
+            
+            // Load Game Button
+            if (loadGameBtn) {
+                loadGameBtn.addEventListener('click', showSaveManager);
+                console.log('Load Game button listener added');
+            }
+            
+            // Settings Button
+            if (settingsBtn) {
+                settingsBtn.addEventListener('click', showSettings);
+                console.log('Settings button listener added');
+            }
+            
+            // Quit Button
+            if (quitBtn) {
+                quitBtn.addEventListener('click', () => {
+                    if (confirm('Are you sure you want to quit?')) {
+                        window.close();
+                    }
+                });
+                console.log('Quit button listener added');
+            }
+            
+            // Start Button
+            if (startBtn) {
+                startBtn.addEventListener('click', startSimulation);
+                console.log('Start button listener added');
+            }
+            
+            // Pause Button
+            if (pauseBtn) {
+                pauseBtn.addEventListener('click', togglePause);
+                console.log('Pause button listener added');
+            }
+            
+            // Reset Button
+            if (resetBtn) {
+                resetBtn.addEventListener('click', resetSimulation);
+                console.log('Reset button listener added');
+            }
+        }
+        
+        function log(message, type = 'info') {
+            if (!outputEl) {
+                console.log(`[${type}] ${message}`);
+                return;
+            }
+            
+            try {
+                const time = new Date().toLocaleTimeString();
+                const logEntry = { time, message, type };
+                logs.push(logEntry);
+                
+                const entry = document.createElement('div');
+                entry.className = `log-entry log-${type}`;
+                entry.innerHTML = `
+                    <span class="log-time">[${time}]</span>
+                    <span class="log-message">${message}</span>`;
+                
+                outputEl.appendChild(entry);
+                outputEl.scrollTop = outputEl.scrollHeight;
+                
+                // Also log to browser console
+                if (type === 'error') console.error(`[${time}] ${message}`);
+                else if (type === 'warning') console.warn(`[${time}] ${message}`);
+                else console.log(`[${time}] [${type}] ${message}`);
+            } catch (e) {
+                console.error('Error in log function:', e);
+            }
+        }
+        
+        function setStatus(message, type = 'info') {
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            log(message, type);
+        }
+        
+        // Global state for main loop management
+        let currentMainLoop = null;
+        let isRunning = false;
+        
+        // Configuration for the Emscripten module
+        const Module = {
+            // Locate WebAssembly and other files
+            locateFile: function(path, prefix) {
+                console.log(`[Module] Locating file: ${path}`);
+                
+                // List of possible paths to try
+                const possiblePaths = [
+                    `/wasm/${path}`,  // Production path
+                    `./public/wasm/${path}`,  // Development path
+                    `./wasm/${path}`,  // Alternative development path
+                    path  // Fallback to original path
+                ];
+                
+                // Try each path until we find one that works
+                for (const possiblePath of possiblePaths) {
+                    try {
+                        const fullPath = prefix ? `${prefix}/${possiblePath}` : possiblePath;
+                        console.log(`[Module] Trying path: ${fullPath}`);
+                        
+                        // Test if the file exists
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('HEAD', fullPath, false);
+                        xhr.send();
+                        
+                        if (xhr.status === 200) {
+                            console.log(`[Module] Found file at: ${fullPath}`);
+                            return fullPath;
+                        }
+                    } catch (e) {
+                        console.warn(`[Module] Error checking path ${possiblePath}:`, e);
+                    }
+                }
+                
+                console.warn(`[Module] File not found: ${path}, using default path`);
+                return path;
+            },
+            
+            canvas: (() => {
+                const canvas = document.getElementById('canvas');
+                if (!canvas) {
+                    console.error('Canvas element not found');
+                    return null;
+                }
+                
+                // Handle WebGL context loss
+                canvas.addEventListener('webglcontextlost', (e) => {
+                    log('WebGL context lost. Attempting to recover...', 'warning');
+                    e.preventDefault();
+                    // Try to recover the context
+                    setTimeout(() => {
+                        if (!canvas.getContext('webgl')) {
+                            log('Failed to recover WebGL context. Please reload the page.', 'error');
+                        } else {
+                            log('WebGL context recovered successfully!', 'success');
+                        }
+                    }, 100);
+                }, false);
+                
+                // Notify when context is restored
+                canvas.addEventListener('webglcontextrestored', () => {
+                    log('WebGL context restored!', 'success');
+                }, false);
+                
+                // Set canvas size based on container
+                const container = canvas.parentElement;
+                if (container) {
+                    const width = Math.min(container.clientWidth, 1200);
+                    const height = Math.floor(width * 0.75); // 4:3 aspect ratio
+                    canvas.width = width;
+                    canvas.height = height;
+                    console.log(`[Module] Canvas initialized with size: ${width}x${height}`);
+                }
+                
+                return canvas;
+            })(),
+            
+            // Handle window resize
+            onResize: function() {
+                const canvas = document.getElementById('canvas');
+                if (!canvas) {
+                    console.warn('[Module] Cannot resize: Canvas element not found');
+                    return;
+                }
+                
+                const container = canvas.parentElement;
+                if (!container) {
+                    console.warn('[Module] Cannot resize: Canvas container not found');
+                    return;
+                }
+                
+                const width = Math.min(container.clientWidth, 1200);
+                const height = Math.floor(width * 0.75); // 4:3 aspect ratio
+                
+                if (canvas.width !== width || canvas.height !== height) {
+                    console.log(`[Module] Resizing canvas to ${width}x${height}`);
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    // Notify the WebAssembly module about the resize
+                    if (window.Module && window.Module._onCanvasResize) {
+                        try {
+                            window.Module._onCanvasResize(width, height);
+                            console.log('[Module] Notified WebAssembly module about canvas resize');
+                        } catch (e) {
+                            console.error('[Module] Error in _onCanvasResize:', e);
+                        }
+                    } else {
+                        console.log('[Module] _onCanvasResize not available yet');
+                    }
+                }
+            },
+            
+            // Show loading progress
+            setStatus: function(text) {
+                setStatus(text, 'info');
+            },
+            
+            // Called when the module is fully loaded
+            onRuntimeInitialized: function() {
+                console.log('[Module] Runtime initialized');
+                
+                try {
+                    // Store the module instance globally
+                    window.Module = Module;
+                    
+                    // Initialize the canvas
+                    if (Module.canvas) {
+                        const style = window.getComputedStyle(Module.canvas);
+                        const width = parseInt(style.getPropertyValue('width'));
+                        const height = parseInt(style.getPropertyValue('height'));
+                        
+                        Module.canvas.width = width;
+                        Module.canvas.height = height;
+                        
+                        console.log(`[Module] Canvas initialized to ${width}x${height}`);
+                    }
+                    
+                    // Override default main loop handling
+                    if (typeof window.Module['_emscripten_set_main_loop'] === 'function') {
+                        const originalSetMainLoop = window.Module['_emscripten_set_main_loop'].bind(window.Module);
+                        window.Module['_emscripten_set_main_loop'] = function(func, fps, simulateInfiniteLoop) {
+                            console.log(`[Module] Setting up Emscripten main loop (fps: ${fps}, infinite: ${simulateInfiniteLoop})`);
+                            Module.setMainLoop(func);
+                        };
+                    }
+                    
+                    // Add cleanup function
+                    window.Module.cleanup = function() {
+                        console.log('[Module] Cleaning up module resources');
+                        Module.cleanup();
+                    };
+                    
+                    // Set up error handling
+                    window.addEventListener('error', function(event) {
+                        console.error('Unhandled error:', event.error);
+                        setStatus(`Error: ${event.message}`, 'error');
+                    });
+                } catch (error) {
+                    console.error('Error during runtime initialization:', error);
+                    setStatus(`Initialization error: ${error.message}`, 'error');
+                }
+                
+                // Initialize the application
+                if (typeof initApp === 'function') {
+                    initApp();
+                }
+            },
+            
+            // Error handling
+            onAbort: function(reason) {
+                const errorMsg = `WebAssembly module aborted: ${reason}`;
+                setStatus(errorMsg, 'error');
+                console.error(errorMsg);
+            },
+            
+            // Print output from the C++ code
+            print: function(text) {
+                log(text, 'info');
+            },
+            
+            // Error logging
+            printErr: function(text) {
+                log(text, 'error');
+            },
+            
+            // Monitor loading progress
+            monitorRunDependencies: function(left) {
+                console.log(`[Module] ${left} dependencies remaining`);
+                
+                // Initialize totalDependencies if not set
+                if (typeof this.totalDependencies === 'undefined') {
+                    this.totalDependencies = left;
+                }
+                
+                // Calculate progress
+                const loaded = this.totalDependencies - left;
+                const progress = Math.round((loaded / this.totalDependencies) * 100);
+                
+                // Update status
+                if (left > 0) {
+                    setStatus(`Loading... ${progress}% (${loaded}/${this.totalDependencies})`, 'info');
+                } else {
+                    console.log('[Module] All dependencies loaded');
+                    log('All dependencies loaded', 'success');
+                    setStatus('All dependencies loaded', 'success');
+                }
+            }
+        };
+
+        // Load the WebAssembly module
+        async function loadWasm() {
+            log('Loading WebAssembly module...', 'info');
+            setStatus('Initializing WebAssembly...', 'info');
+            
+            // Base URL for WebAssembly files
+            const baseUrl = new URL(window.location.href);
+            baseUrl.pathname = baseUrl.pathname.replace(/\/[^/]*$/, '/');
+            
+            // Try different possible paths for the WebAssembly files
+            const wasmPaths = [
+                { 
+                    js: '/wasm/index.js',
+                    wasm: '/wasm/index.wasm',
+                    desc: 'Production path (/wasm/)'
+                },
+                { 
+                    js: './public/wasm/index.js',
+                    wasm: './public/wasm/index.wasm',
+                    desc: 'Development path (./public/wasm/)'
+                },
+                { 
+                    js: './wasm/index.js',
+                    wasm: './wasm/index.wasm',
+                    desc: 'Alternative development path (./wasm/)'
+                },
+                { 
+                    js: new URL('wasm/index.js', baseUrl).href,
+                    wasm: new URL('wasm/index.wasm', baseUrl).href,
+                    desc: 'Dynamic URL path'
+                }
+            ];
+            
+            // Log the paths we're trying
+            log('Trying to load WebAssembly from the following paths:', 'info');
+            wasmPaths.forEach((path, index) => {
+                log(`${index + 1}. ${path.desc || path.js}`, 'info');
+            });
+            
+            for (const path of wasmPaths) {
+                try {
+                    log(`Attempting to load WebAssembly from ${path.js}...`, 'info');
+                    
+                    // Set up the module configuration
+                    const moduleConfig = {
+                        ...Module,
+                        // Specify the location of the .wasm file
+                        locateFile: function(wasmFile) {
+                            log(`Locating WebAssembly file: ${wasmFile}`, 'debug');
+                            if (wasmFile.endsWith('.wasm')) {
+                                return path.wasm;
+                            }
+                            return wasmFile;
+                        },
+                        // Handle initialization progress
+                        setStatus: function(text) {
+                            log(`[Module] ${text}`, 'info');
+                        },
+                        // Handle runtime initialization
+                        onRuntimeInitialized: function() {
+                            log('WebAssembly runtime initialized', 'success');
+                            
+                            // Verify memory is properly initialized
+                            if (window.Module && window.Module.HEAP8) {
+                                log('WebAssembly memory initialized successfully', 'success');
+                                log(`Initial memory size: ${window.Module.HEAP8.length} bytes`, 'info');
+                                
+                                // Set up memory growth handler if needed
+                                if (window.Module.HEAP8.buffer) {
+                                    window.Module.HEAP8.buffer.addEventListener('grow', (e) => {
+                                        log(`WebAssembly memory grown to ${e.detail} bytes`, 'info');
+                                    });
+                                }
+                            } else {
+                                log('Warning: WebAssembly memory not properly initialized', 'warning');
+                            }
+                            
+                            // Call the original onRuntimeInitialized if it exists
+                            if (Module.onRuntimeInitialized) {
+                                Module.onRuntimeInitialized();
+                            }
+                        },
+                        // Handle errors
+                        onAbort: function(reason) {
+                            const errorMsg = `WebAssembly module aborted: ${reason}`;
+                            log(errorMsg, 'error');
+                            setStatus(errorMsg, 'error');
+                        },
+                        // Enable WebGL and other features
+                        webglContextAttributes: {
+                            antialias: true,
+                            alpha: true,
+                            depth: true,
+                            stencil: true,
+                            premultipliedAlpha: true,
+                            preserveDrawingBuffer: false,
+                            powerPreference: 'high-performance',
+                            failIfMajorPerformanceCaveat: false
+                        },
+                        // Disable some warnings
+                        noInitialRun: true,
+                        noExitRuntime: true
+                    };
+                    
+                    // Import and initialize the module
+                    const { default: createModule } = await import(path.js);
+                    log('WebAssembly module imported, initializing...', 'info');
+                    
+                    // Create the module instance
+                    window.Module = await createModule(moduleConfig);
+                    
+                    // Verify the module was created successfully
+                    if (!window.Module) {
+                        throw new Error('Failed to create WebAssembly module instance');
+                    }
+                    
+                    log(`WebAssembly module loaded from ${path.js}`, 'success');
+                    return true;
+                    
+                } catch (e) {
+                    log(`Could not load from ${path.js}: ${e.message}`, 'warning');
+                    console.error(`Error loading ${path.js}:`, e);
+                    continue;
+                }
+            }
+            
+            const errorDetails = [
+                'Could not load WebAssembly module from any location. Please check:',
+                '1. The WebAssembly files (.js and .wasm) exist in the correct location',
+                '2. The server is configured to serve .wasm files with MIME type: application/wasm',
+                '3. The server allows cross-origin requests (CORS) for WebAssembly files',
+                '4. The paths in the wasmPaths array are correct for your deployment',
+                '\nTried the following paths:',
+                ...wasmPaths.map((p, i) => `  ${i+1}. ${p.desc || p.js}`),
+                '\nSee browser console for detailed error information.'
+            ].join('\n');
+            
+            log(errorDetails, 'error');
+            console.error('WebAssembly loading failed. Details:\n', errorDetails);
+            
+            // Show a user-friendly error message
+            setStatus('Failed to load WebAssembly module. See console for details.', 'error');
+            
+            // Create a more visible error message in the UI
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(255, 0, 0, 0.9);
+                color: white;
+                padding: 20px;
+                border-radius: 5px;
+                max-width: 80%;
+                max-height: 80vh;
+                overflow: auto;
+                z-index: 10000;
+                text-align: left;
+                font-family: monospace;
+                white-space: pre-wrap;
+            `;
+            errorDiv.textContent = errorDetails;
+            document.body.appendChild(errorDiv);
+            
+            return false;
+        }
+        
+        // Save management
+        const saveManager = {
+            saves: [],
+            
+            // Check for saved games
+            checkForSaves: function() {
+                try {
+                    const saves = localStorage.getItem('evolutionSimSaves');
+                    this.saves = saves ? JSON.parse(saves) : [];
+                    return this.saves.length > 0;
+                } catch (e) {
+                    console.error('Error loading saves:', e);
+                    return false;
+                }
+            },
+            
+            // Get list of saves
+            getSaves: function() {
+                return [...this.saves];
+            },
+            
+            // Save game state
+            saveGame: function(name, data) {
+                const save = {
+                    id: Date.now(),
+                    name: name || `Save ${this.saves.length + 1}`,
+                    timestamp: new Date().toISOString(),
+                    data: data
+                };
+                
+                this.saves.unshift(save);
+                this.persistSaves();
+                return save;
+            },
+            
+            // Delete a save
+            deleteSave: function(id) {
+                this.saves = this.saves.filter(save => save.id !== id);
+                this.persistSaves();
+                return this.checkForSaves();
+            },
+            
+            // Persist saves to localStorage
+            persistSaves: function() {
+                localStorage.setItem('evolutionSimSaves', JSON.stringify(this.saves));
+            }
+        };
+        
+        // Initialize the application
+        async function initApp() {
+            console.log('Initializing application...');
+            
+            try {
+                // Initialize DOM elements
+                initElements();
+                
+                // Set up all button listeners
+                setupButtonListeners();
+                
+                // Check for saved games and update UI
+                const hasSaves = saveManager.checkForSaves();
+                if (loadGameBtn) {
+                    loadGameBtn.disabled = !hasSaves;
+                }
+                
+                // Set initial state for new game button
+                if (newGameBtn) {
+                    newGameBtn.disabled = true;
+                    newGameBtn.textContent = 'LOADING...';
+                    newGameBtn.classList.add('loading');
+                }
+                
+                // Load the WebAssembly module
+                try {
+                    const wasmLoaded = await loadWasm();
+                    if (wasmLoaded) {
+                        log('WebAssembly module loaded successfully!', 'success');
+                        
+                        // Enable the New Game button once the module is loaded
+                        if (newGameBtn) {
+                            newGameBtn.disabled = false;
+                            newGameBtn.textContent = 'NEW GAME';
+                            newGameBtn.classList.remove('loading');
+                            newGameBtn.onclick = startNewGame;
+                        }
+                        
+                        console.log('Application initialization complete');
+                    } else {
+                        throw new Error('Failed to load WebAssembly module');
+                    }
+                } catch (error) {
+                    const errorMsg = `Error loading WebAssembly module: ${error.message}`;
+                    log(errorMsg, 'error');
+                    setStatus(errorMsg, 'error');
+                    console.error('Error details:', error);
+                    
+                    // Update UI to show error state with retry option
+                    if (newGameBtn) {
+                        newGameBtn.disabled = false;
+                        newGameBtn.textContent = 'ERROR - CLICK TO RETRY';
+                        newGameBtn.classList.add('error');
+                        newGameBtn.onclick = () => window.location.reload();
+                    }
+                }
+            } catch (error) {
+                const errorMsg = `Initialization error: ${error.message}`;
+                console.error(errorMsg, error);
+                log(errorMsg, 'error');
+                setStatus(errorMsg, 'error');
+            }
+        }
+        
+        function setupButtonListeners() {
+            // Set up simulation control buttons
+            if (startBtn && pauseBtn && resetBtn) {
+                startBtn.addEventListener('click', () => {
+                    if (window.Module) {
+                        try {
+                            if (typeof window.Module._main === 'function') {
+                                window.Module._main();
+                                startBtn.disabled = true;
+                                pauseBtn.disabled = false;
+                                setStatus('Simulation started', 'success');
+                                log('Simulation started', 'success');
+                            } else if (typeof window.Module._start === 'function') {
+                                window.Module._start();
+                                startBtn.disabled = true;
+                                pauseBtn.disabled = false;
+                                setStatus('Simulation started', 'success');
+                                log('Simulation started', 'success');
+                            } else {
+                                const errorMsg = 'No _main or _start function found in the module';
+                                setStatus(errorMsg, 'error');
+                                log(errorMsg, 'error');
+                            }
+                        } catch (error) {
+                            const errorMsg = `Error starting simulation: ${error.message}`;
+                            setStatus(errorMsg, 'error');
+                            log(errorMsg, 'error');
+                            console.error('Error details:', error);
+                        }
+                    } else {
+                        const errorMsg = 'WebAssembly module not loaded yet';
+                        setStatus(errorMsg, 'error');
+                        log(errorMsg, 'error');
+                    }
+                });
+                
+                pauseBtn.addEventListener('click', togglePause);
+                resetBtn.addEventListener('click', resetSimulation);
+            }
+        }
+        
+        // Start a new game
+        function startNewGame() {
+            log('Starting new game...', 'info');
+            newGameBtn.disabled = true;
+            newGameBtn.textContent = 'LOADING...';
+            newGameBtn.classList.add('loading');
+            
+            // Hide menu and show game container
+            mainMenu.classList.add('hidden');
+            gameContainer.classList.remove('hidden');
+            
+            // Initialize the simulation
+            if (!window.Module) {
+                const errorMsg = 'WebAssembly module not loaded';
+                log(errorMsg, 'error');
+                setStatus(errorMsg, 'error');
+                console.error('Module not found:', window.Module);
+                resetNewGameButton();
+                return;
+            }
+            
+            // Check if _main exists and is a function
+            if (typeof window.Module._main !== 'function') {
+                const errorMsg = 'Simulation entry point not found';
+                log(errorMsg, 'error');
+                setStatus(errorMsg, 'error');
+                console.error('_main not found in Module. Available methods:', Object.getOwnPropertyNames(window.Module).filter(k => typeof window.Module[k] === 'function'));
+                resetNewGameButton();
+                return;
+            }
+            try {
+                // Hide menu and show game container
+                mainMenu.classList.add('hidden');
+                gameContainer.classList.remove('hidden');
+                
+                // Initialize the simulation
+                if (!window.Module) {
+                    throw new Error('WebAssembly module not loaded');
+                }
+                
+                console.log('Available Module methods:', Object.keys(window.Module).filter(k => typeof window.Module[k] === 'function'));
+                
+                // Safely check for memory properties
+                const memoryProperties = [
+                    'HEAP8', 'HEAPU8', 'HEAP16', 'HEAPU16',
+                    'HEAP32', 'HEAPU32', 'HEAPF32', 'HEAPF64',
+                    'TOTAL_MEMORY', 'TOTAL_STACK', 'TOTAL_DATA'
+                ];
+                
+                const memoryState = {};
+                memoryProperties.forEach(prop => {
+                    if (prop in window.Module) {
+                        try {
+                            if (window.Module[prop] && typeof window.Module[prop] === 'object') {
+                                memoryState[prop] = {
+                                    type: typeof window.Module[prop],
+                                    byteLength: window.Module[prop]?.byteLength,
+                                    byteOffset: window.Module[prop]?.byteOffset,
+                                    bufferType: window.Module[prop]?.constructor?.name
+                                };
+                            } else {
+                                memoryState[prop] = window.Module[prop];
+                            }
+                        } catch (e) {
+                            memoryState[prop] = `Error: ${e.message}`;
+                        }
+                    }
+                });
+                
+                console.log('WebAssembly Memory State:', memoryState);
+                
+                // Start the simulation if _main is available
+                if (typeof window.Module._main === 'function') {
+                    window.Module._main();
+                } else {
+                    throw new Error('Simulation entry point (_main) not found');
+                }
+                
+            } catch (error) {
+                console.error('Error starting new game:', error);
+                const errorMsg = `Failed to start game: ${error.message}`;
+                log(errorMsg, 'error');
+                setStatus(errorMsg, 'error');
+                resetNewGameButton();
+            }
+            
+            function resetNewGameButton() {
+                if (newGameBtn) {
+                    newGameBtn.disabled = false;
+                    newGameBtn.textContent = 'RETRY';
+                    newGameBtn.classList.remove('loading');
+                    newGameBtn.onclick = startNewGame;
+                }
+                // Show menu again on error
+                mainMenu.classList.remove('hidden');
+                gameContainer.classList.add('hidden');
+            }
+        }
+        
+        // Show save manager modal
+        function showSaveManager() {
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            
+            const saves = saveManager.getSaves();
+            
+            let html = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Load Game</h2>
+                        <button class="close-btn">&times;</button>
+                    </div>
+                    <div class="saves-list">
+                        ${saves.length > 0 ? 
+                            saves.map(save => `
+                                <div class="save-item" data-id="${save.id}">
+                                    <div class="save-name">${save.name}</div>
+                                    <div class="save-date">${new Date(save.timestamp).toLocaleString()}</div>
+                                    <div class="save-actions">
+                                        <button class="load-btn">Load</button>
+                                        <button class="delete-btn">Delete</button>
+                                    </div>
+                                </div>
+                            `).join('')
+                            : 
+                            '<div class="no-saves">No saved games found</div>'
+                        }
+                    </div>
+                </div>
+            `;
+            
+            modal.innerHTML = html;
+            document.body.appendChild(modal);
+            
+            // Close modal when clicking the close button or outside the modal
+            modal.querySelector('.close-btn').addEventListener('click', () => {
+                document.body.removeChild(modal);
+            });
+            
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            });
+            
+            // Handle load and delete buttons
+            modal.querySelectorAll('.load-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const saveId = parseInt(e.target.closest('.save-item').dataset.id);
+                    loadGame(saveId);
+                    document.body.removeChild(modal);
+                });
+            });
+            
+            modal.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const saveItem = e.target.closest('.save-item');
+                    const saveId = parseInt(saveItem.dataset.id);
+                    
+                    if (confirm('Are you sure you want to delete this save?')) {
+                        const hasMoreSaves = saveManager.deleteSave(saveId);
+                        if (hasMoreSaves) {
+                            saveItem.remove();
+                        } else {
+                            document.body.removeChild(modal);
+                            loadGameBtn.disabled = true;
+                        }
+                    }
+                });
+            });
+        }
+        
+        // Load a saved game
+        function loadGame(saveId) {
+            const save = saveManager.getSaves().find(s => s.id === saveId);
+            if (!save) {
+                log('Error: Save file not found', 'error');
+                return;
+            }
+            
+            log(`Loading save: ${save.name}`, 'info');
+            
+            // Hide menu and show game container
+            mainMenu.classList.add('hidden');
+            gameContainer.classList.remove('hidden');
+            
+            // Initialize the simulation with save data
+            if (window.Module && typeof window.Module._loadGame === 'function') {
+                try {
+                    // Convert save data to the format expected by the WebAssembly module
+                    const saveData = JSON.stringify(save.data);
+                    window.Module._loadGame(saveData);
+                    log(`Game loaded from save: ${save.name}`, 'success');
+                    startBtn.disabled = true;
+                    pauseBtn.disabled = false;
+                } catch (error) {
+                    const errorMsg = `Error loading save: ${error.message}`;
+                    log(errorMsg, 'error');
+                    setStatus(errorMsg, 'error');
+                    console.error('Error details:', error);
+                }
+            } else {
+                log('Load game functionality not available in this build', 'warning');
+                // Fallback to new game if load function isn't available
+                startNewGame();
+            }
+        }
+        
+        // Show settings (placeholder)
+        function showSettings() {
+            log('Settings functionality not yet implemented', 'warning');
+            // TODO: Implement settings dialog
+        }
+        
+        // Start the simulation
+        function startSimulation() {
+            if (window.Module) {
+                try {
+                    if (typeof window.Module._start === 'function') {
+                        window.Module._start();
+                        log('Simulation started', 'success');
+                        startBtn.disabled = true;
+                        pauseBtn.disabled = false;
+                    } else if (typeof window.Module._main === 'function') {
+                        window.Module._main();
+                        log('Simulation started (using _main)', 'success');
+                        startBtn.disabled = true;
+                        pauseBtn.disabled = false;
+                    } else {
+                        throw new Error('No valid entry point found in WebAssembly module');
+                    }
+                } catch (error) {
+                    const errorMsg = `Error starting simulation: ${error.message}`;
+                    log(errorMsg, 'error');
+                    setStatus(errorMsg, 'error');
+                    console.error('Error details:', error);
+                }
+            } else {
+                const errorMsg = 'WebAssembly module not loaded yet';
+                log(errorMsg, 'error');
+                setStatus(errorMsg, 'error');
+            }
+        }
+        
+        // Toggle pause state
+        function togglePause() {
+            if (!window.Module) {
+                log('WebAssembly module not loaded', 'error');
+                return;
+            }
+            
+            try {
+                // Check if we're using Emscripten's runtime
+                if (typeof window.Module.asm !== 'undefined' && 
+                    typeof window.Module.asm._emscripten_pause_main_loop === 'function' &&
+                    typeof window.Module.asm._emscripten_resume_main_loop === 'function') {
+                    
+                    // Check current state and toggle
+                    if (window.Module.asm._emscripten_get_main_loop_timing() === 0) {
+                        // Currently paused, resume
+                        window.Module.asm._emscripten_resume_main_loop();
+                        pauseBtn.textContent = 'Pause';
+                        log('Simulation resumed', 'info');
+                    } else {
+                        // Currently running, pause
+                        window.Module.asm._emscripten_pause_main_loop();
+                        pauseBtn.textContent = 'Resume';
+                        log('Simulation paused', 'info');
+                    }
+                } 
+                // Fallback to direct function call if available
+                else if (typeof window.Module._pause === 'function') {
+                    const isPaused = window.Module._pause();
+                    log(`Simulation ${isPaused ? 'paused' : 'resumed'}`, 'info');
+                    pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+                } 
+                // Fallback to Emscripten's runtime functions
+                else if (typeof window.Module._emscripten_pause_main_loop === 'function') {
+                    if (window.Module._emscripten_get_main_loop_timing() === 0) {
+                        window.Module._emscripten_resume_main_loop();
+                        pauseBtn.textContent = 'Pause';
+                        log('Simulation resumed', 'info');
+                    } else {
+                        window.Module._emscripten_pause_main_loop();
+                        pauseBtn.textContent = 'Resume';
+                        log('Simulation paused', 'info');
+                    }
+                } else {
+                    log('Pause functionality not available in this build', 'warning');
+                }
+            } catch (error) {
+                const errorMsg = `Error toggling pause: ${error.message}`;
+                log(errorMsg, 'error');
+                setStatus(errorMsg, 'error');
+            }
+        }
+        
+        // Reset the simulation
+        function resetSimulation() {
+            if (!confirm('Are you sure you want to reset the simulation? This will restart the current session.')) {
+                return;
+            }
+            
+            log('Resetting simulation...', 'info');
+            
+            if (!window.Module) {
+                log('WebAssembly module not loaded, reloading page...', 'warning');
+                window.location.reload();
+                return;
+            }
+            
+            try {
+                // Cancel any running main loop
+                if (typeof window.Module._emscripten_cancel_main_loop === 'function') {
+                    window.Module._emscripten_cancel_main_loop();
+                } else if (window.Module.asm && typeof window.Module.asm._emscripten_cancel_main_loop === 'function') {
+                    window.Module.asm._emscripten_cancel_main_loop();
+                }
+                
+                // Call the reset function if available
+                if (typeof window.Module._reset === 'function') {
+                    window.Module._reset();
+                    log('Simulation reset successfully', 'success');
+                } else if (typeof window.Module._main === 'function') {
+                    // If no reset function, try to reinitialize by calling main again
+                    log('No reset function found, reinitializing simulation...', 'warning');
+                    window.Module._main();
+                } else {
+                    throw new Error('No reset or main function found');
+                }
+                
+                // Update UI
+                if (startBtn) startBtn.disabled = false;
+                if (pauseBtn) {
+                    pauseBtn.disabled = true;
+                    pauseBtn.textContent = 'Pause';
+                }
+                
+                // Reset game running state
+                isGameRunning = false;
+                
+                // Show the menu again
+                mainMenu.classList.remove('hidden');
+                gameContainer.classList.add('hidden');
+                
+                log('Simulation reset complete', 'success');
+                
+            } catch (error) {
+                const errorMsg = `Error resetting simulation: ${error.message}`;
+                log(errorMsg, 'error');
+                setStatus(errorMsg, 'error');
+                
+                // Fallback to page reload if reset fails
+                log('Reloading page to ensure clean state...', 'warning');
+                setTimeout(() => window.location.reload(), 1000);
+            }
+        }
+        
+        // Start the application when the page loads
+        let isInitialized = false;
+        let isInitializing = false;
+        
+        async function initializeApp() {
+            // Prevent multiple initializations
+            if (isInitialized || isInitializing) {
+                console.log('App already initialized or initializing');
+                return;
+            }
+            
+            isInitializing = true;
+            console.log('Initializing application...');
+            
+            try {
+                // Initialize DOM elements
+                initElements();
+                
+                // Set up button listeners
+                setupButtonListeners();
+                
+                // Load WebAssembly module
+                const loaded = await loadWasm();
+                if (!loaded) {
+                    throw new Error('Failed to load WebAssembly module');
+                }
+                
+                // Update UI
+                if (newGameBtn) {
+                    newGameBtn.disabled = false;
+                    newGameBtn.textContent = 'NEW GAME';
+                    newGameBtn.classList.remove('loading');
+                    // Remove any existing click handlers to prevent duplicates
+                    newGameBtn.replaceWith(newGameBtn.cloneNode(true));
+                    newGameBtn = document.getElementById('new-game-btn');
+                    newGameBtn.addEventListener('click', startNewGame);
+                }
+                
+                isInitialized = true;
+                console.log('Application initialized successfully');
+                setStatus('Ready to start simulation', 'success');
+                
+            } catch (error) {
+                console.error('Error initializing application:', error);
+                const errorMsg = `Initialization error: ${error.message}`;
+                setStatus(errorMsg, 'error');
+                
+                // Enable retry button if initialization fails
+                if (newGameBtn) {
+                    newGameBtn.disabled = false;
+                    newGameBtn.textContent = 'RETRY';
+                    newGameBtn.classList.remove('loading');
+                    // Remove any existing click handlers to prevent duplicates
+                    newGameBtn.replaceWith(newGameBtn.cloneNode(true));
+                    newGameBtn = document.getElementById('new-game-btn');
+                    newGameBtn.addEventListener('click', initializeApp);
+                }
+            } finally {
+                isInitializing = false;
+            }
+        }
+
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                initializeApp().catch(error => {
+                    console.error('Failed to initialize app:', error);
+                    if (statusEl) {
+                        statusEl.textContent = `Initialization error: ${error.message}`;
+                        statusEl.className = 'status error';
+                    }
+                });
+            });
+        } else {
+            // DOM already loaded, run immediately
+            setTimeout(() => {
+                initializeApp().catch(error => {
+                    console.error('Failed to initialize app:', error);
+                    if (statusEl) {
+                        statusEl.textContent = `Initialization error: ${error.message}`;
+                        statusEl.className = 'status error';
+                    }
+                });
+            }, 0);
+        }
+        
+        // Create a broadcast channel for diagnostics
+        const diagChannel = new BroadcastChannel('evolution-sim-diag');
+        
+        // Function to broadcast logs to diagnostics page
+        function broadcastLog(message, type = 'info') {
+            try {
+                diagChannel.postMessage({
+                    type: 'log',
+                    data: { message, type }
+                });
+            } catch (e) {
+                // Silently fail if broadcast fails
+                console.error('Failed to broadcast log:', e);
+            }
+        }
+        
+        // Notify diagnostics page when we're connected
+        broadcastLog('Game instance started', 'info');
+        diagChannel.postMessage({ type: 'status', data: { connected: true } });
+        
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            diagChannel.postMessage({ type: 'status', data: { connected: false } });
+            diagChannel.close();
+        });
+        
+        // Forward all console logs to our log function
+        (function() {
+            // Create a flag to prevent infinite recursion
+            let isLogging = false;
+            
+            // Store original console methods
+            const originalConsole = {
+                log: console.log,
+                error: console.error,
+                warn: console.warn,
+                info: console.info,
+                debug: console.debug
+            };
+            
+            const consoleMethods = ['log', 'error', 'warn', 'info', 'debug'];
+            
+            consoleMethods.forEach(method => {
+                const originalMethod = originalConsole[method];
+                console[method] = function() {
+                    try {
+                        // First call the original console method
+                        originalMethod.apply(console, arguments);
+                        
+                        // Prevent infinite recursion
+                        if (isLogging) return;
+                        isLogging = true;
+                        
+                        try {
+                            // Convert arguments to a string
+                            const args = Array.from(arguments);
+                            const message = args.map(arg => {
+                                if (arg instanceof Error) {
+                                    return arg.stack || arg.message;
+                                } else if (arg && typeof arg === 'object') {
+                                    try {
+                                        return JSON.stringify(arg, null, 2);
+                                    } catch (e) {
+                                        return String(arg);
+                                    }
+                                }
+                                return String(arg);
+                            }).join(' ');
+                            
+                            // Map console method to log types
+                            const typeMap = {
+                                'error': 'error',
+                                'warn': 'warning',
+                                'log': 'info',
+                                'info': 'info',
+                                'debug': 'debug'
+                            };
+                            
+                            // Get log type
+                            const logType = typeMap[method] || 'info';
+                            
+                            // Log to our UI if log element exists
+                            const logElement = document.getElementById('log');
+                            if (logElement) {
+                                const logEntry = document.createElement('div');
+                                logEntry.className = `log-entry log-${logType}`;
+                                logEntry.innerHTML = `[${new Date().toISOString()}] [${logType.toUpperCase()}] ${message}`;
+                                logElement.appendChild(logEntry);
+                                logElement.scrollTop = logElement.scrollHeight;
+                            }
+                            
+                            // Broadcast to diagnostics page
+                            broadcastLog(message, logType);
+                        } finally {
+                            isLogging = false;
+                        }
+                    } catch (e) {
+                        // If something goes wrong, at least don't break the original console
+                        originalMethod.apply(console, ['Error in console wrapper:', e]);
+                    }
+                };
+            });
+            
+            // Global error handler
+            window.onerror = function(message, source, lineno, colno, error) {
+                if (isLogging) return true; // Prevent infinite recursion
+                isLogging = true;
+                try {
+                    const errorMsg = error ? error.stack : `${message} (${source}:${lineno}:${colno})`;
+                    console.error(`Uncaught error: ${errorMsg}`);
+                } finally {
+                    isLogging = false;
+                }
+                return true; // Prevent default browser error handling
+            };
+            
+            // Unhandled promise rejections
+            window.onunhandledrejection = function(event) {
+                if (isLogging) return;
+                isLogging = true;
+                try {
+                    const reason = event.reason || 'Unknown error';
+                    const errorMsg = reason instanceof Error ? reason.stack : String(reason);
+                    console.error(`Unhandled promise rejection: ${errorMsg}`);
+                } finally {
+                    isLogging = false;
+                }
+            };
+            
+            console.log('Console logging initialized');
+        })(); // End of IIFE
+    </script>
+</body>
+</html>

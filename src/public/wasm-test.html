@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WASM Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #output { 
+            white-space: pre; 
+            font-family: monospace;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        canvas { 
+            border: 1px solid #ccc;
+            display: block;
+            margin: 10px 0;
+        }
+        .error { color: #d32f2f; }
+        .success { color: #388e3c; }
+        .info { color: #1976d2; }
+    </style>
+</head>
+<body>
+    <h1>WebAssembly Module Test</h1>
+    <div id="output">Initializing WebAssembly module...</div>
+    <canvas id="canvas" width="800" height="600"></canvas>
+
+    <script>
+        const output = document.getElementById('output');
+        const canvas = document.getElementById('canvas');
+        
+        function log(message, type = 'info') {
+            const line = document.createElement('div');
+            line.className = type;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+            console[type === 'error' ? 'error' : type](message);
+        }
+
+        // Configure the Emscripten module
+        const Module = {
+            canvas: (() => {
+                canvas.addEventListener('webglcontextlost', (e) => {
+                    log('WebGL context lost. Please reload the page.', 'error');
+                    e.preventDefault();
+                }, false);
+                return canvas;
+            })(),
+            print: (text) => log(text, 'info'),
+            printErr: (text) => log(text, 'error'),
+            onRuntimeInitialized: function() {
+                log('WebAssembly module initialized!', 'success');
+                
+                // The module is now ready to use
+                if (typeof Module._main === 'function') {
+                    log('Calling _main()...', 'info');
+                    try {
+                        Module._main();
+                        log('Successfully called _main()', 'success');
+                    } catch (e) {
+                        log(`Error calling _main(): ${e}`, 'error');
+                    }
+                } else if (typeof Module._start === 'function') {
+                    log('Calling _start()...', 'info');
+                    try {
+                        Module._start();
+                        log('Successfully called _start()', 'success');
+                    } catch (e) {
+                        log(`Error calling _start(): ${e}`, 'error');
+                    }
+                } else {
+                    log('No _main or _start function found in the module', 'info');
+                    
+                    // List all exported functions for debugging
+                    const functions = [];
+                    for (const key in Module) {
+                        if (typeof Module[key] === 'function') {
+                            functions.push(key);
+                        }
+                    }
+                    log(`Exported functions: ${functions.join(', ')}`, 'info');
+                }
+            },
+            onAbort: function(reason) {
+                log(`WebAssembly module aborted: ${reason}`, 'error');
+            },
+            // Add any additional Emscripten module options here
+        };
+
+        // Load the WebAssembly module
+        async function loadWasm() {
+            try {
+                log('Loading WebAssembly module...', 'info');
+                
+                // Import the Emscripten module
+                const { default: createModule } = await import('./wasm/index.js');
+                
+                // Create the module with our configuration
+                const module = await createModule(Module);
+                
+                // Make the module available globally
+                window.Module = module;
+                
+                log('Emscripten module loaded successfully', 'success');
+                
+                return true;
+            } catch (error) {
+                log(`Failed to load WebAssembly module: ${error}`, 'error');
+                console.error('Error details:', error);
+                return false;
+            }
+        }
+
+        // Start loading the WebAssembly module when the page loads
+        window.addEventListener('load', () => {
+            loadWasm().catch(error => {
+                log(`Error during WebAssembly module loading: ${error}`, 'error');
+                console.error('Error details:', error);
+            });
+        });
+
+        // Global error handler
+        window.addEventListener('error', (e) => {
+            log(`Global error: ${e.message} at ${e.filename}:${e.lineno}:${e.colno}`, 'error');
+            console.error('Global error details:', e);
+        });
+
+        // Unhandled promise rejection handler
+        window.addEventListener('unhandledrejection', (e) => {
+            log(`Unhandled promise rejection: ${e.reason}`, 'error');
+            console.error('Unhandled rejection details:', e.reason);
+        });
+    </script>
+</body>
+</html>

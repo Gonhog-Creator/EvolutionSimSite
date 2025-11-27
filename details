@@ -1,0 +1,339 @@
+Browser-Native C++ Simulation Game Engine (2D) — Modular, Extensible, WASM/WebGPU, Save-Enabled
+
+1. Core Goals
+
+Build a fully browser-compatible 2D C++ game engine with:
+
+C++ Simulation Core (compiled to WebAssembly)
+
+WebGPU (preferred) or WebGL2 rendering backend
+
+Custom ECS for scalability
+
+Deterministic simulation loop (lockstep-friendly)
+
+Modular subsystem design for future expansions
+
+Persistent Save System using IndexedDB + JSON/Binary
+
+Browser-friendly packaging (ESM wrapper, async asset pipelines)
+
+Hot-reloadable content definitions (JSON/YAML/TSV)
+
+📁 2. Project Structure
+
+Use this folder layout:
+
+/engine
+    /core
+        Application.h/.cpp
+        Config.h
+        Platform.h
+        Logging.h
+        Time.h
+    /memory
+        Allocators.h
+        PoolAllocator.h
+    /ecs
+        ECS.h
+        Component.h
+        Entity.h
+        System.h
+    /math
+        Vec2.h
+        Mat3.h
+        AABB.h
+    /render
+        Renderer.h
+        WebGPUBackend.h
+        WebGLBackend.h
+        Shader.h
+        Texture.h
+        SpriteBatch.h
+    /input
+        Input.h
+        KeyCodes.h
+    /assets
+        AssetManager.h
+        ImageLoader.h
+        JSONLoader.h
+    /simulation
+        World.h
+        SimulationSystem.h
+        Physics.h
+        Grid.h
+        AI.h
+    /ui
+        UIContext.h
+        UIFont.h
+        UILayout.h
+
+/game
+    /scenes
+        Scene.h
+        Scene_MainMenu.h
+        Scene_Gameplay.h
+    /components
+        Transform.h
+        Sprite.h
+        Movement.h
+    /systems
+        RenderSystem.h
+        MovementSystem.h
+        AISystem.h
+
+/platform
+    /web
+        wasm_app.cpp
+        wasm_bindings.cpp
+        js_glue.js
+        index.html
+
+/build
+    CMakeLists.txt
+    build_wasm.sh
+
+/saves
+    (empty—created by browser at runtime)
+
+/assets
+    textures/
+    sprites/
+    fonts/
+    maps/
+    config/
+
+⚙️ 3. Technical Foundations
+3.1 Engine Loop
+
+Use a fixed-timestep simulation + variable-timestep rendering:
+
+Simulation: 60 Hz fixed  
+Rendering: unlocked (browser requestAnimationFrame)
+
+
+Simulation runs in WASM. JS triggers the render callback.
+
+3.2 ECS Architecture
+
+Must be:
+
+cache-friendly
+
+data-oriented
+
+easy to extend
+
+Entities: 32-bit IDs
+Components: Plain structs in SoA layout
+Systems: Update over arrays of components
+
+Systems included:
+
+MovementSystem
+
+CollisionSystem
+
+RenderSystem
+
+AISystem
+
+ScriptingSystem (future)
+
+NetworkingSystem (future expansion)
+
+3.3 Rendering Backend
+
+Primary: WebGPU via Dawn or wgpu-native.
+Fallback: WebGL2 using Emscripten bindings.
+
+Rendering features:
+
+Sprite batcher
+
+Texture atlas
+
+Simple shader pipeline
+
+Camera transform
+
+Text rendering
+
+Designed for future additions:
+
+particles
+
+tilemaps
+
+post-processing
+
+lighting
+
+💾 4. Save/Load System (Browser-Persistent)
+Goals:
+
+Fast
+
+Portable across versions
+
+IndexedDB-backed
+
+JSON or binary option
+
+Partial or full state saving
+
+Save pipeline:
+
+C++ simulation serializes to a std::vector<uint8_t> (binary) or JSON.
+
+WASM exports a function getSaveData().
+
+JavaScript receives the data and stores it in IndexedDB.
+
+On load, JS retrieves the blob and calls loadGame(data) in WASM.
+
+JS API:
+saveGame(slot)
+loadGame(slot)
+deleteSave(slot)
+listSaves()
+
+C++ API:
+SaveState serializeWorld(const World&);
+void deserializeWorld(World&, const SaveState&);
+
+Support planned:
+
+Version stamping
+
+Migration rules
+
+Cloud sync (future)
+
+🎨 5. Data-Driven Content
+
+Content should never require recompiling the engine.
+
+Store in /assets/config:
+
+entities.json
+
+sprites.json
+
+ai_profiles.json
+
+maps/*.json
+
+settings.json
+
+Engine hot-loads these on refresh.
+
+🌐 6. Web Integration
+JS/WASM bridge (js_glue.js)
+
+Input events → WASM
+
+requestAnimationFrame → render callback
+
+Asset preloading (fetch, decode, send to WASM)
+
+Save management via IndexedDB
+
+Window resizing → update viewport
+
+Console logging forwarding
+
+🧩 7. Modularity & Future-Proofing
+
+Design subsystems as independent modules:
+
+Planned modules:
+
+Networking (lockstep or snapshot sync)
+
+Lua or AngelScript scripting
+
+Particle system
+
+Tilemap renderer
+
+Audio engine
+
+Plugin/mod loader
+
+Replay/recording system
+
+All modules plug into:
+
+Engine::registerSystem(...)
+Engine::registerComponent(...)
+Engine::registerSerializer(...)
+
+🧪 8. Testing Infrastructure
+
+Catch2 or GoogleTest for simulation logic
+
+WASM browser tests via Playwright
+
+Stress-test harness for ECS and physics
+
+📦 9. Build System (WASM Target)
+CMake configuration
+
+Build native & WASM from same sources
+
+Emscripten flags:
+
+-s WASM=1
+-s USE_WEBGPU=1 (or USE_WEBGL2=1)
+-s ASSERTIONS=0
+-s ALLOW_MEMORY_GROWTH=1
+-s MODULARIZE=1
+-s EXPORT_ES6=1
+--preload-file assets
+
+Output:
+
+engine.wasm
+
+engine.js
+
+index.html
+
+🚀 10. Stretch Features
+
+These are architecturally anticipated but not required now:
+
+Savable mod packs
+
+Deterministic lockstep multiplayer
+
+Replay/fast-forward system
+
+Entity prefab system
+
+Hot-reload for C++ systems via WASI (experimental)
+
+🏁 11. Deliverables Windsurf Should Build
+
+Ask Windsurf to generate:
+
+Full folder structure
+
+Minimal C++ files
+
+ECS template
+
+WebGPU/WebGL renderer scaffold
+
+WASM bindings for input/render loop
+
+Save/load using IndexedDB
+
+index.html + js glue
+
+Example scene with sprite
+
+Example simulation ticks
+
+CMakeLists for native + wasm

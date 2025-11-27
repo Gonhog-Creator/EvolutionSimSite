@@ -1,0 +1,17 @@
+{
+  "name": "evolution-simulator",
+  "version": "1.0.0",
+  "description": "A browser-native C++ simulation game engine with WebAssembly",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "dev:clean": "rm -rf build_wasm src/public/wasm src/public/*.{js,wasm,worker.js} && chmod +x ./src/scripts/build_wasm.sh && ./src/scripts/build_wasm.sh && vite",
+    "build": "npm run build:wasm && vite build",
+    "build:wasm": "chmod +x ./src/scripts/build_wasm.sh && ./src/scripts/build_wasm.sh",
+    "preview": "vite preview",
+    "emscripten": "source ~/emsdk/emsdk_env.sh"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
