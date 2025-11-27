@@ -26,14 +26,89 @@ if(EMSCRIPTEN)
     set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s NO_EXIT_RUNTIME=1")
     set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s WASM_BIGINT")
     
-    # Module settings - use a custom export name to avoid conflicts
+    # Module settings - use a custom export name
     set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s MODULARIZE=1")
     set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s EXPORT_ES6=1")
     set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s ENVIRONMENT=web,worker")
     set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s USE_ES6_IMPORT_META=1")
     set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s EXPORT_NAME='createEmscriptenModule'")
-    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s EXPORTED_RUNTIME_METHODS='ccall,cwrap'")
-    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s EXPORTED_FUNCTIONS='_main,_start,_resizeCanvas,_pause,_resume'")
+    
+    # Core settings
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s WASM=1")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s MODULARIZE=1")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s EXPORT_ES6=1")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s USE_ES6_IMPORT_META=1")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s EXPORT_NAME='createEmscriptenModule'")
+    
+    # Memory settings
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s ALLOW_MEMORY_GROWTH=1")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s INITIAL_MEMORY=64MB")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s MAXIMUM_MEMORY=1GB")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s ALLOW_TABLE_GROWTH=1")
+    
+    # Export settings - use a single EXPORT_ALL=1 to ensure everything is exported
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s EXPORT_ALL=1")
+    
+    # Explicitly export all required runtime methods
+    set(EXPORTED_RUNTIME_METHODS 
+        ccall
+        cwrap
+        FS
+        setValue
+        getValue
+        UTF8ToString
+        stringToUTF8
+        lengthBytesUTF8
+        UTF16ToString
+        stringToUTF16
+        lengthBytesUTF16
+        UTF32ToString
+        stringToUTF32
+        lengthBytesUTF32
+        addFunction
+        removeFunction
+        AsciiToString
+        stringToAscii
+        intArrayFromString
+        intArrayToString
+        ALLOC_NORMAL
+        ALLOC_STACK
+        ALLOC_STORAGE
+        ALLOC_DYNAMIC
+        ALLOC_NONE
+    )
+    
+    # Join the runtime methods with commas
+    string(REPLACE ";" "," EXPORTED_RUNTIME_METHODS_STR "${EXPORTED_RUNTIME_METHODS}")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s EXPORTED_RUNTIME_METHODS=${EXPORTED_RUNTIME_METHODS_STR}")
+    
+    # Export all HEAP* views
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s EXPORT_NAME=createEmscriptenModule")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s EXPORT_ES6=1")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s MODULARIZE=1")
+    
+    # Memory settings
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s ALLOW_MEMORY_GROWTH=1")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s INITIAL_MEMORY=64MB")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s MAXIMUM_MEMORY=1GB")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s ALLOW_TABLE_GROWTH=1")
+    
+    # Disable memory growth handlers that might cause issues
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s MEMORY_GROWTH_GEOMETRIC_STEP=-1")
+    
+    # Debugging
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s ASSERTIONS=1")
+    
+    # Enable WASM features
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s WASM_BIGINT")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s WASM=1")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s FILESYSTEM=0")
+    
+    # Memory and optimization settings
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s ALLOW_MEMORY_GROWTH=1")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s INITIAL_MEMORY=64MB")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s MAXIMUM_MEMORY=1GB")
+    set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s ALLOW_TABLE_GROWTH=1")
     set(EMSCRIPTEN_LINK_FLAGS "${EMSCRIPTEN_LINK_FLAGS} -s FILESYSTEM=0")
     
     # Use our custom shell file

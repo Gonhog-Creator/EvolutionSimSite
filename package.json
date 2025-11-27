@@ -4,14 +4,17 @@
   "description": "A browser-native C++ simulation game engine with WebAssembly",
   "main": "index.js",
   "scripts": {
-    "dev": "vite",
-    "dev:clean": "rm -rf build_wasm src/public/wasm src/public/*.{js,wasm,worker.js} && chmod +x ./src/scripts/build_wasm.sh && ./src/scripts/build_wasm.sh && vite",
-    "build": "npm run build:wasm && vite build",
+    "dev": "npm run transform:wasm && vite",
+    "setup": "chmod +x ./src/scripts/setup_wasm.sh && ./src/scripts/setup_wasm.sh",
+    "dev:clean": "rm -rf build_wasm src/public/wasm src/public/*.{js,wasm,worker.js} && npm run build:wasm && npm run setup && npm run transform:wasm && vite",
+    "build": "npm run build:wasm && npm run setup && npm run transform:wasm && vite build",
     "build:wasm": "chmod +x ./src/scripts/build_wasm.sh && ./src/scripts/build_wasm.sh",
+    "transform:wasm": "node scripts/transform-wasm-js.js",
     "preview": "vite preview",
     "emscripten": "source ~/emsdk/emsdk_env.sh"
   },
   "devDependencies": {
+    "glob": "^13.0.0",
     "vite": "^5.0.0"
   }
 }
