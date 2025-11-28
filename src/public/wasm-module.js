@@ -515,7 +515,7 @@ function findWasmBinary() {
   }
 
   // Use bundler-friendly `new URL(..., import.meta.url)` pattern; works in browsers too.
-  return new URL('index.wasm', import.meta.url).href;
+  return '/wasm/index.wasm'.href;
 
 }
 
@@ -1998,5 +1998,7 @@ for (const prop of Object.keys(Module)) {
 }
 
 // Export using a UMD style export, or ES6 exports if selected
-export default createEmscriptenModule;
+const wasmModule = createEmscriptenModule;
+
+export default wasmModule;
 

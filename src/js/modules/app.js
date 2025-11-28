@@ -9,9 +9,12 @@ class App {
         this.currentMainLoop = null;
         this.isRunning = false;
         this.isPaused = false;
-        this.diagChannel = null;
         this.gameState = null;
         this.elements = {};
+        
+        // Initialize diagnostics channel
+        this.diagChannel = null;
+        this.setupDiagnostics();
     }
 
     async initialize() {
@@ -125,28 +128,41 @@ class App {
     setupDiagnostics() {
         try {
             this.diagChannel = new BroadcastChannel('evolution-sim-diag');
-            this.broadcastLog('Game instance started', 'info');
-            this.diagChannel.postMessage({ type: 'status', data: { connected: true } });
             
-            window.addEventListener('beforeunload', () => {
-                this.diagChannel.postMessage({ type: 'status', data: { connected: false } });
-                this.diagChannel.close();
+            // Send initial status
+            this.sendDiagMessage('status', { connected: true });
+            
+            // Set up a ping interval to keep the connection alive
+            this.diagPingInterval = setInterval(() => {
+                this.sendDiagMessage('status', { connected: true });
+            }, 2000); // Send status update every 2 seconds
+            
+            // Send a welcome message
+            this.sendDiagMessage('log', {
+                message: 'Diagnostics channel initialized',
+                type: 'info'
             });
+            
         } catch (error) {
-            logger.error('Failed to initialize diagnostics:', error);
+            console.error('Failed to initialize diagnostics channel:', error);
         }
     }
 
-    broadcastLog(message, type = 'info') {
+    sendDiagMessage(type, data = {}) {
         if (!this.diagChannel) return;
         
         try {
             this.diagChannel.postMessage({
-                type: 'log',
-                data: { message, type }
+                type,
+                data,
+                timestamp: Date.now()
             });
+            
+            // Update last message time for connection tracking
+            this.lastDiagMessageTime = Date.now();
+            
         } catch (error) {
-            logger.error('Failed to broadcast log:', error);
+            console.error('Failed to send diagnostics message:', error);
         }
     }
 
@@ -504,19 +520,7 @@ class App {
         // This will be implemented when we add the save system
         alert('Save game functionality coming soon!');
     }
-
-    /**
-     * Handles the Settings button click in the pause menu
-     */
-    onSettingsMenuClick() {
-        logger.log('Opening settings...');
-        // TODO: Implement settings menu
-        alert('Settings menu coming soon!');
-    }
-
-    /**
-     * Handles the Quit to Menu button click in the pause menu
-     */
+    
     onQuitToMenuClick() {
         logger.log('Quitting to main menu...');
         this.resetSimulation();
@@ -528,6 +532,7 @@ class App {
         
         // Reset states
         this.isRunning = false;
+        this.isPaused = false;
         this.isPaused = false;
     }
 
@@ -617,18 +622,29 @@ class App {
     
     /**
      * Draws the simulation grid
-     * @param {CanvasRenderingContext2D} ctx - Canvas 2D context
-     * @param {number} width - Canvas width
-     * @param {number} height - Canvas height
+     * @param {CanvasRenderingContext2D} [ctx] - Optional canvas 2D context
+     * @param {number} [width] - Optional canvas width
+     * @param {number} [height] - Optional canvas height
      */
-    drawGrid(ctx, width, height) {
-        if (!this.grid) return;
+    async drawGrid(ctx, width, height) {
+        // If no context is provided, get it from the canvas
+        if (!ctx) {
+            const canvas = document.querySelector('canvas');
+            if (!canvas) return;
+            
+            ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            
+            width = canvas.width;
+            height = canvas.height;
+        }
         
-        const { cellSize } = this.grid;
+        // If we have a grid, use its cell size, otherwise default to 20
+        const cellSize = this.grid?.cellSize || 20;
         
-        // Draw grid lines
-        ctx.strokeStyle = '#1a1a1a';
-        ctx.lineWidth = 1;
+        // Set grid line style
+        ctx.strokeStyle = this.grid ? '#1a1a1a' : '#333333';
+        ctx.lineWidth = this.grid ? 1 : 0.5;
         
         // Vertical lines
         for (let x = 0; x <= width; x += cellSize) {
