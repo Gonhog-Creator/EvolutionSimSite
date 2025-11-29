@@ -184,7 +184,18 @@ class SaveManager {
             metadata: { lastPlayed: Date.now() } 
         });
 
-        return save.gameState;
+        // Return both the game state and the save metadata
+        return {
+            ...save.gameState,
+            // Include save metadata in the game state
+            saveId: save.id,
+            saveName: save.name,
+            // Include other metadata that might be useful
+            metadata: {
+                ...(save.gameState.metadata || {}),
+                ...save.metadata
+            }
+        };
     }
 
     /**

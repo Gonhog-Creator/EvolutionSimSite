@@ -209,15 +209,18 @@
             background-color: #1e1e1e;
             border-radius: 4px;
             padding: 10px;
-            height: calc(100vh - 200px);
-            overflow-y: auto;
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            font-size: 13px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
             line-height: 1.5;
             color: #e0e0e0;
-            margin: 0;
+            white-space: pre-wrap;
+            margin: 10px 0;
+            height: 350px;
             border: 1px solid #333;
             box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
         
         .console::-webkit-scrollbar {
@@ -561,9 +564,8 @@
         <div class="tabs">
             <button class="tab active" data-tab="console">Console</button>
             <button class="tab" data-tab="performance">Performance</button>
-            <button class="tab" data-tab="webgl">WebGL</button>
             <button class="tab" data-tab="wasm">WebAssembly</button>
-            <button class="tab" data-tab="system">System Info</button>
+            <button class="tab" data-tab="system-info">System Info</button>
         </div>
        
         <!-- Console Tab -->
@@ -577,9 +579,6 @@
                 </button>
                 <button id="copy-console" class="secondary">
                     <span>📋</span> Copy
-                </button>
-                <button id="toggle-timestamps" class="secondary">
-                    <span>⏱️</span> Toggle Timestamps
                 </button>
             </div>
             <div class="console" id="console-output">
@@ -635,63 +634,31 @@
             </div>
         </div>
        
-        <!-- WebGL Info Section -->
-        <div id="webgl-info" class="status-card" style="display: none;">
-            <h3>WebGL Information</h3>
-            <div id="webgl-details">
-                <p>Loading WebGL information...</p>
-            </div>
-        </div>
-        
-        <!-- WebGL Tab -->
-        <div id="webgl-tab" class="tab-content">
-            <h3>WebGL Information</h3>
-            <div class="status-grid">
-                <div class="metric-card">
-                    <h4>Vendor</h4>
-                    <p id="webgl-vendor" class="metric-value">--</p>
-                </div>
-                <div class="metric-card">
-                    <h4>Renderer</h4>
-                    <p id="webgl-renderer" class="metric-value">--</p>
-                </div>
-                <div class="metric-card">
-                    <h4>Version</h4>
-                    <p id="webgl-version" class="metric-value">--</p>
-                </div>
-                <div class="metric-card">
-                    <h4>Max Texture Size</h4>
-                    <p id="webgl-texture-size" class="metric-value">--</p>
-                </div>
-            </div>
-            
-            <div class="canvas-container">
-                <canvas id="webgl-canvas" width="800" height="400"></canvas>
-            </div>
-            
-            <div class="controls">
-                <button id="webgl-test">
-                    <span>🔍</span> Run WebGL Test
-                </button>
-                <button id="webgl-benchmark" class="secondary">
-                    <span>⚡</span> Run Benchmark
-                </button>
-            </div>
-        </div>
-       
         <!-- System Info Tab -->
-        <div id="system-tab" class="tab-content">
-            <h3>System Information</h3>
-            <div id="system-info" class="status-card">
-                <p>Loading system information...</p>
+        <div id="system-info-tab" class="tab-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0;">System Information</h3>
+                <button id="export-info" class="secondary" style="display: flex; align-items: center; gap: 5px;">
+                    <span>📤</span> Export Info
+                </button>
             </div>
-            <div class="controls">
-                <button id="copy-system-info">
-                    <span>📋</span> Copy to Clipboard
-                </button>
-                <button id="save-system-info" class="secondary">
-                    <span>💾</span> Save as File
-                </button>
+            <div class="system-info-container">
+                <div id="system-details" class="system-details">
+                    <div class="info-section">
+                        <h4>System</h4>
+                        <p><strong>Browser:</strong> <span id="browser-info">Detecting...</span></p>
+                        <p><strong>OS:</strong> <span id="os-info">Detecting...</span></p>
+                        <p><strong>CPU Cores:</strong> <span id="cpu-cores">Detecting...</span></p>
+                        <p><strong>Device Memory:</strong> <span id="device-memory">Detecting...</span></p>
+                        <div id="system-details-list"></div>
+                    </div>
+                    <div class="info-section">
+                        <h4>WebGL Information</h4>
+                        <div id="webgl-details">
+                            <p>Detecting WebGL information...</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -733,51 +700,6 @@
                 </button>
                 <button id="wasm-debug" class="secondary">
                     <span>🐞</span> Debug Info
-                </button>
-                <button id="wasm-benchmark" class="secondary">
-                    <span>⚡</span> Run Benchmark
-                </button>
-                <button id="wasm-debug" class="secondary">
-                    <span>🐞</span> Debug Info
-                </button>
-            </div>
-        </div>
-       
-        <!-- System Info Tab -->
-        <div id="system-tab" class="tab-content">
-            <h3>System Information</h3>
-            <div class="status-grid">
-                <div class="metric-card">
-                    <h4>Browser</h4>
-                    <p id="browser-info" class="metric-value">--</p>
-                </div>
-                <div class="metric-card">
-                    <h4>OS</h4>
-                    <p id="os-info" class="metric-value">--</p>
-                </div>
-                <div class="metric-card">
-                    <h4>CPU Cores</h4>
-                    <p id="cpu-cores" class="metric-value">--</p>
-                </div>
-                <div class="metric-card">
-                    <h4>Device Memory</h4>
-                    <p id="device-memory" class="metric-value">-- GB</p>
-                </div>
-            </div>
-            
-            <div class="card">
-                <h4>Detailed Information</h4>
-                <div id="system-details" class="console" style="height: 300px; overflow-y: auto; font-family: monospace;">
-                    Loading system information...
-                </div>
-            </div>
-            
-            <div class="controls">
-                <button id="copy-system-info">
-                    <span>📋</span> Copy to Clipboard
-                </button>
-                <button id="save-system-info" class="secondary">
-                    <span>💾</span> Save as File
                 </button>
             </div>
         </div>
@@ -839,7 +761,6 @@
                 'send-command': { type: 'button' },
                 'clear-console': { type: 'button' },
                 'export-logs': { type: 'button' },
-                'toggle-timestamps': { type: 'button' },
                 'copy-console': { type: 'button' },
                 
                 // Profiling
@@ -860,12 +781,8 @@
                 // Tabs
                 'console-tab': { type: 'tab' },
                 'performance-tab': { type: 'tab' },
-                'webgl-tab': { type: 'tab' },
-                'wasm-tab': { type: 'tab' },
-                'system-tab': { 
-                    type: 'tab',
-                    defaultValue: { innerHTML: 'System information not available' } 
-                }
+                'system-tab': { type: 'tab' },
+                'wasm-tab': { type: 'tab' }
             };
             
             // Initialize all elements
@@ -976,6 +893,9 @@
                 // Setup event listeners first
                 setupEventListeners();
                 
+                // Set up tabs
+                setupTabs();
+                
                 // Initialize console before other components
                 setupConsole();
                 
@@ -1008,6 +928,78 @@
                 setInterval(updateHeaderStats, 1000);
             }
             
+            // Tab functionality
+            function setupTabs() {
+                // Get all tab elements
+                const tabs = document.querySelectorAll('.tab');
+                const tabContents = document.querySelectorAll('.tab-content');
+                
+                if (!tabs.length || !tabContents.length) {
+                    console.error('Tabs or tab contents not found');
+                    return;
+                }
+                
+                // Set initial active tab (Console by default)
+                setActiveTab('console');
+                
+                // Add click handlers to tabs
+                tabs.forEach(tab => {
+                    tab.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const tabId = tab.getAttribute('data-tab');
+                        console.log('Tab clicked:', tabId);
+                        
+                        if (tabId) {
+                            setActiveTab(tabId);
+                            
+                            // Special handling for specific tabs
+                            if (tabId === 'performance') {
+                                updatePerformanceCharts();
+                            } else if (tabId === 'system-info') {
+                                checkSystemInfo();
+                                checkWebGLInfo();
+                            } else if (tabId === 'console') {
+                                // Ensure console is scrolled to bottom
+                                const consoleOutput = document.getElementById('console-output');
+                                if (consoleOutput) {
+                                    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                                }
+                            }
+                        }
+                    });
+                });
+            }
+            
+            // Set active tab by ID
+            function setActiveTab(tabId) {
+                console.log('Setting active tab:', tabId);
+                
+                // Remove active class from all tabs and contents
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                
+                // Add active class to selected tab and content
+                const activeTab = document.querySelector(`.tab[data-tab="${tabId}"]`);
+                const activeContent = document.getElementById(`${tabId}-tab`);
+                
+                if (activeTab) {
+                    activeTab.classList.add('active');
+                } else {
+                    console.error(`Tab with ID ${tabId} not found`);
+                }
+                
+                if (activeContent) {
+                    activeContent.classList.add('active');
+                } else {
+                    console.error(`Tab content with ID ${tabId}-tab not found`);
+                }
+            }
+            
             // Set up event listeners with safe defaults
             function setupEventListeners() {
                 // Helper function to safely add event listeners
@@ -1027,82 +1019,350 @@
                 // Helper to safely get element by ID
                 const $ = (id) => document.getElementById(id) || {};
                 
-                // Tab functionality
-                function setupTabs() {
-                    if (!elements.tabs || !elements.tabContents) return;
-                    
-                    elements.tabs.forEach(tab => {
-                        tab.addEventListener('click', () => {
-                            // Remove active class from all tabs and contents
-                            elements.tabs.forEach(t => t.classList.remove('active'));
-                            elements.tabContents.forEach(c => c.classList.remove('active'));
+                // Add copy console button handler
+                if (elements.copyConsole) {
+                    elements.copyConsole.addEventListener('click', () => {
+                        try {
+                            const consoleText = Array.from(elements.consoleOutput.children)
+                                .map(div => div.textContent)
+                                .join('\n');
                             
-                            // Add active class to clicked tab and corresponding content
-                            tab.classList.add('active');
-                            const tabId = tab.getAttribute('data-tab');
-                            const content = document.getElementById(`${tabId}-tab`);
-                            if (content) content.classList.add('active');
-                            
-                            // Special handling for specific tabs
-                            if (tabId === 'performance') {
-                                updatePerformanceCharts();
-                            } else if (tabId === 'webgl') {
-                                initWebGLCanvas();
-                            }
-                        });
+                            navigator.clipboard.writeText(consoleText).then(() => {
+                                // Show feedback
+                                const originalText = elements.copyConsole.innerHTML;
+                                elements.copyConsole.innerHTML = '<span>✓</span> Copied!';
+                                elements.copyConsole.classList.add('success');
+                                
+                                // Reset button after 2 seconds
+                                setTimeout(() => {
+                                    elements.copyConsole.innerHTML = originalText;
+                                    elements.copyConsole.classList.remove('success');
+                                }, 2000);
+                                
+                                logToConsole('Console output copied to clipboard', 'success');
+                            }).catch(err => {
+                                console.error('Failed to copy:', err);
+                                logToConsole('Failed to copy to clipboard', 'error');
+                            });
+                        } catch (err) {
+                            console.error('Error copying console:', err);
+                            logToConsole('Error copying console output', 'error');
+                        }
                     });
                 }
                 
-                // setActiveTab has been moved to the app's public interface
+                // Add clear console button handler
+                if (elements.clearConsole) {
+                    elements.clearConsole.addEventListener('click', clearConsole);
+                }
+                
+                // Add export info button handler
+                const exportInfoBtn = document.getElementById('export-info');
+                if (exportInfoBtn) {
+                    exportInfoBtn.addEventListener('click', (e) => {
+                        try {
+                            exportSystemInfo();
+                        } catch (error) {
+                            console.error('Error in export info click handler:', error);
+                            logToConsole('Export failed: ' + (error.message || 'Unknown error'), 'error');
+                        }
+                    });
+                }
+                
+                // Add export logs button handler
+                if (elements.exportLogs) {
+                    console.log('Setting up export logs button handler');
+                    elements.exportLogs.addEventListener('click', (e) => {
+                        console.log('Export button clicked');
+                        try {
+                            console.log('Current logs state:', {
+                                hasLogs: !!state.logs,
+                                isArray: Array.isArray(state.logs),
+                                logCount: state.logs?.length || 0
+                            });
+                            
+                            // Force add a test log entry when export is clicked
+                            logToConsole('Export button clicked at ' + new Date().toISOString(), 'debug');
+                            
+                            // Small delay to ensure the log is processed
+                            setTimeout(() => {
+                                try {
+                                    exportLogs();
+                                } catch (innerError) {
+                                    console.error('Error in delayed export:', innerError);
+                                    logToConsole('Export failed: ' + (innerError.message || 'Unknown error'), 'error');
+                                }
+                            }, 100);
+                            
+                        } catch (error) {
+                            console.error('Error in export click handler:', error);
+                            logToConsole('Export failed: ' + (error.message || 'Unknown error'), 'error');
+                            
+                            // Show error feedback
+                            if (elements.exportLogs) {
+                                const originalText = elements.exportLogs.innerHTML;
+                                elements.exportLogs.innerHTML = '<span>❌</span> Failed!';
+                                elements.exportLogs.classList.add('error');
+                                
+                                setTimeout(() => {
+                                    if (elements.exportLogs) {
+                                        elements.exportLogs.innerHTML = originalText;
+                                        elements.exportLogs.classList.remove('error');
+                                    }
+                                }, 2000);
+                            }
+                        }
+                    });
+                }
                 
                 // Clear the console
                 function clearConsole() {
-                    elements.consoleOutput.innerHTML = '';
-                    logToConsole('Console cleared', 'info');
+                    try {
+                        if (elements.consoleOutput) {
+                            // Store the current logs length for the log message
+                            const logsCount = state.logs ? state.logs.length : 0;
+                            
+                            // Clear the console output
+                            elements.consoleOutput.innerHTML = '';
+                            
+                            // Clear the logs array while maintaining reference
+                            if (state.logs) {
+                                state.logs.length = 0;
+                            }
+                            
+                            // Add a log message
+                            logToConsole(`Console cleared (${logsCount} messages removed)`, 'info');
+                            
+                            // Visual feedback
+                            if (elements.clearConsole) {
+                                const originalText = elements.clearConsole.innerHTML;
+                                elements.clearConsole.innerHTML = '<span>✓</span> Cleared!';
+                                elements.clearConsole.classList.add('success');
+                                
+                                setTimeout(() => {
+                                    if (elements.clearConsole) {
+                                        elements.clearConsole.innerHTML = originalText;
+                                        elements.clearConsole.classList.remove('success');
+                                    }
+                                }, 2000);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error clearing console:', error);
+                        logToConsole('Failed to clear console', 'error');
+                    }
                 }
-                logToConsole('Console cleared', 'info');
             }
             
-            // Toggle timestamps in console
-            function toggleTimestamps() {
-                state.showTimestamps = !state.showTimestamps;
-                elements.toggleTimestampsBtn.classList.toggle('active', state.showTimestamps);
-                
-                // Re-render all logs with new timestamp setting
-                const currentLogs = [...state.logs];
-                elements.consoleOutput.innerHTML = '';
-                state.logs = [];
-                
-                currentLogs.forEach(logEntry => {
-                    logToConsole(logEntry.message, logEntry.type);
-                });
-                
-                logToConsole(`Timestamps ${state.showTimestamps ? 'enabled' : 'disabled'}`, 'info');
-            }
+            // Toggle timestamps functionality has been removed
             
-            // Export logs to file
-            function exportLogs() {
+            // Export system info to file
+            function exportSystemInfo() {
                 try {
-                    const logText = state.logs.map(entry => {
-                        const time = new Date(entry.timestamp).toISOString();
-                        return `[${time}] [${entry.type.toUpperCase()}] ${entry.message}`;
-                    }).join('\n');
+                    // Collect all system information
+                    let exportText = '=== System Information ===\n\n';
                     
-                    const blob = new Blob([logText], { type: 'text/plain' });
+                    // Add system info
+                    exportText += '## System ##\n';
+                    exportText += `Browser: ${document.getElementById('browser-info').textContent}\n`;
+                    exportText += `OS: ${document.getElementById('os-info').textContent}\n`;
+                    exportText += `CPU Cores: ${document.getElementById('cpu-cores').textContent}\n`;
+                    exportText += `Device Memory: ${document.getElementById('device-memory').textContent}\n`;
+                    
+                    // Add screen resolution and other details
+                    const details = document.querySelectorAll('#system-details-list p');
+                    details.forEach(detail => {
+                        exportText += `${detail.textContent}\n`;
+                    });
+                    
+                    // Add WebGL info
+                    exportText += '\n## WebGL Information ##\n';
+                    const webglDetails = document.getElementById('webgl-details');
+                    webglDetails.querySelectorAll('p').forEach(p => {
+                        exportText += `${p.textContent}\n`;
+                    });
+                    
+                    // Create and trigger download
+                    const blob = new Blob([exportText], { type: 'text/plain' });
                     const url = URL.createObjectURL(blob);
-                    
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `evolution-simulator-logs-${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
+                    a.download = `system-info-${new Date().toISOString().slice(0, 10)}.txt`;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
                     
-                    logToConsole('Logs exported successfully', 'success');
+                    logToConsole('System information exported', 'success');
                 } catch (error) {
-                    logToConsole(`Failed to export logs: ${error.message}`, 'error');
-                    console.error('Export logs error:', error);
+                    logToConsole(`Failed to export system information: ${error.message}`, 'error');
+                    console.error('Export system info error:', error);
+                }
+            }
+            
+            // Export logs to file
+            function exportLogs() {
+                try {
+                    console.log('Export logs called. Current state:', {
+                        hasLogs: !!state.logs,
+                        isArray: Array.isArray(state.logs),
+                        logCount: state.logs?.length || 0
+                    });
+                    
+                    // Check if logs exist in the DOM as a fallback
+                    const domLogs = elements.consoleOutput?.querySelectorAll('.log-entry');
+                    console.log('DOM logs count:', domLogs?.length);
+                    
+                    // If no logs in state but logs in DOM, try to recover them
+                    if ((!state.logs || state.logs.length === 0) && domLogs && domLogs.length > 0) {
+                        console.log('Recovering logs from DOM...');
+                        state.logs = Array.from(domLogs).map(logEl => ({
+                            message: logEl.querySelector('.log-message')?.textContent || logEl.textContent,
+                            type: Array.from(logEl.classList).find(cls => cls.startsWith('log-'))?.replace('log-', '') || 'info',
+                            timestamp: new Date().toISOString()
+                        }));
+                        console.log(`Recovered ${state.logs.length} logs from DOM`);
+                    }
+                    
+                    // Ensure logs array exists and has content
+                    if (!state.logs || !Array.isArray(state.logs) || state.logs.length === 0) {
+                        const errorMsg = 'No logs available to export';
+                        console.warn(errorMsg);
+                        logToConsole(errorMsg, 'warning');
+                        
+                        // Add a test log entry if in development mode
+                        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                            console.log('Adding test log entry...');
+                            logToConsole('This is a test log entry', 'info');
+                            logToConsole('Another test entry with error level', 'error');
+                            return exportLogs(); // Try again with the test entries
+                        }
+                        return;
+                    }
+                    
+                    // Create a more detailed log file with header
+                    const header = `=== Evolution Simulator Logs ===\n` +
+                                 `Generated: ${new Date().toISOString()}\n` +
+                                 `Total Entries: ${state.logs.length}\n` +
+                                 `================================\n\n`;
+                    
+                    // Format log entries
+                    const logText = header + state.logs.map(entry => {
+                        const time = new Date(entry.timestamp).toISOString();
+                        const type = (entry.type || 'info').toUpperCase().padEnd(7);
+                        return `[${time}] [${type}] ${entry.message}`;
+                    }).join('\n');
+                    
+                    // Create and trigger download
+                    const blob = new Blob([logText], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    a.download = `evolution-simulator-logs-${timestamp}.log`;
+                    
+                    // Append to body, trigger click, and clean up
+                    document.body.appendChild(a);
+                    a.click();
+                    
+                    // Clean up
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }, 100);
+                    
+                    // Visual feedback
+                    if (elements.exportLogs) {
+                        const originalText = elements.exportLogs.innerHTML;
+                        elements.exportLogs.innerHTML = '<span>✓</span> Exported!';
+                        elements.exportLogs.classList.add('success');
+                        
+                        setTimeout(() => {
+                            if (elements.exportLogs) {
+                                elements.exportLogs.innerHTML = originalText;
+                                elements.exportLogs.classList.remove('success');
+                            }
+                        }, 2000);
+                    }
+                    
+                    logToConsole(`Exported ${state.logs.length} log entries to file`, 'success');
+                    
+                } catch (error) {
+                    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                    console.error('Export failed:', error);
+                    logToConsole(`Export failed: ${errorMsg}`, 'error');
+                    
+                    // Show error feedback
+                    if (elements.exportLogs) {
+                        const originalText = elements.exportLogs.innerHTML;
+                        elements.exportLogs.innerHTML = '<span>❌</span> Failed!';
+                        elements.exportLogs.classList.add('error');
+                        
+                        setTimeout(() => {
+                            if (elements.exportLogs) {
+                                elements.exportLogs.innerHTML = originalText;
+                                elements.exportLogs.classList.remove('error');
+                            }
+                        }, 2000);
+                    }
+                }
+            }
+            
+            // Log a message to the console
+            function logToConsole(message, type = 'info') {
+                try {
+                    const timestamp = new Date().toISOString();
+                    const logEntry = { message: String(message), type: String(type || 'info'), timestamp };
+                    
+                    // Initialize logs array if it doesn't exist
+                    if (!state.logs || !Array.isArray(state.logs)) {
+                        console.log('Initializing logs array');
+                        state.logs = [];
+                    }
+                    
+                    // Add to state
+                    state.logs.push(logEntry);
+                    console.log(`Added log entry. Total logs: ${state.logs.length}`, logEntry);
+                    
+                    // Limit log history to prevent memory issues
+                    const MAX_LOGS = 1000;
+                    if (state.logs.length > MAX_LOGS) {
+                        state.logs = state.logs.slice(-MAX_LOGS);
+                    }
+                    
+                    // Update UI if console output element exists
+                    if (elements.consoleOutput) {
+                        const logElement = document.createElement('div');
+                        logElement.className = `log-entry log-${type}`;
+                        
+                        // Add timestamp if enabled
+                        if (state.showTimestamps) {
+                            const timeElement = document.createElement('span');
+                            timeElement.className = 'log-time';
+                            timeElement.textContent = `[${new Date(timestamp).toLocaleTimeString()}] `;
+                            logElement.appendChild(timeElement);
+                        }
+                        
+                        // Add message
+                        const messageElement = document.createElement('span');
+                        messageElement.className = 'log-message';
+                        messageElement.textContent = message;
+                        logElement.appendChild(messageElement);
+                        
+                        elements.consoleOutput.appendChild(logElement);
+                        elements.consoleOutput.scrollTop = elements.consoleOutput.scrollHeight;
+                    }
+                    
+                    // Also log to browser console for debugging
+                    const logMethod = console[type] || console.log;
+                    logMethod.call(console, `[${type}] ${message}`);
+                    
+                    return logEntry;
+                } catch (error) {
+                    console.error('Error in logToConsole:', error);
+                    console.log('Log entry that caused error:', { message, type });
                 }
             }
             
@@ -1964,63 +2224,21 @@
                 }
                 
                 // Detailed system info
-                const systemDetails = document.getElementById('system-details');
+                const systemDetails = document.getElementById('system-details-list');
                 systemDetails.innerHTML = '';
                 
-                const info = {
-                    'User Agent': navigator.userAgent,
-                    'Platform': navigator.platform,
-                    'Language': navigator.language,
-                    'Cookies Enabled': navigator.cookieEnabled ? 'Yes' : 'No',
-                    'Online': navigator.onLine ? 'Yes' : 'No',
-                    'Screen Resolution': `${window.screen.width}x${window.screen.height}`,
-                    'Viewport Size': `${window.innerWidth}x${window.innerHeight}`,
-                    'Color Depth': `${window.screen.colorDepth} bits`,
-                    'Pixel Ratio': window.devicePixelRatio || 1,
-                    'Touch Support': 'ontouchstart' in window ? 'Yes' : 'No',
-                    'Web Workers': typeof(Worker) !== 'undefined' ? 'Yes' : 'No',
-                    'Service Workers': 'serviceWorker' in navigator ? 'Yes' : 'No',
-                    'IndexedDB': 'indexedDB' in window ? 'Yes' : 'No',
-                    'WebAssembly': checkWasmSupport() ? 'Supported' : 'Not supported',
-                    'WebGL': checkWebGLSupport() ? 'Supported' : 'Not supported',
-                    'WebGL2': checkWebGL2Support() ? 'Supported' : 'Not supported',
-                    'WebGPU': 'gpu' in navigator ? 'Supported' : 'Not supported',
-                    'SharedArrayBuffer': typeof SharedArrayBuffer !== 'undefined' ? 'Supported' : 'Not supported',
-                    'SIMD': 'simd' in WebAssembly ? 'Supported' : 'Not supported',
-                    'Threads': 'Threads' in WebAssembly ? 'Supported' : 'Not supported',
-                    'BigInt': typeof BigInt !== 'undefined' ? 'Supported' : 'Not supported',
-                    'WASM SIMD': WebAssembly.validate ? 'Supported' : 'Not supported',
-                    'WASM Threads': 'Threads' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Bulk Memory': 'bulkMemory' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Reference Types': 'referenceTypes' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Multi-Value': 'multiValue' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Tail Call': 'tailCalls' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Exception Handling': 'exceptionHandling' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Garbage Collection': 'gc' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Memory64': 'memory64' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Extended Const': 'extendedConst' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Relaxed SIMD': 'relaxedSimd' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Multi-Memory': 'multiMemory' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Memory Control': 'memoryControl' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Type Reflection': 'typeReflection' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Function References': 'functionReferences' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM GC': 'gc' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Memory64': 'memory64' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Extended Const': 'extendedConst' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Relaxed SIMD': 'relaxedSimd' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Multi-Memory': 'multiMemory' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Memory Control': 'memoryControl' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Type Reflection': 'typeReflection' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM Function References': 'functionReferences' in WebAssembly ? 'Supported' : 'Not supported',
-                    'WASM GC': 'gc' in WebAssembly ? 'Supported' : 'Not supported',
-                };
+                const info = [
+                    ['Screen Resolution', `${window.screen.width}x${window.screen.height}`],
+                    ['WebGL', checkWebGLSupport() ? 'Supported' : 'Not supported'],
+                    ['WebGL2', checkWebGL2Support() ? 'Supported' : 'Not supported'],
+                    ['WebAssembly', checkWasmSupport() ? 'Supported' : 'Not supported']
+                ];
                 
-                for (const [key, value] of Object.entries(info)) {
-                    const div = document.createElement('div');
-                    div.style.padding = '4px 0';
-                    div.style.borderBottom = '1px solid rgba(255, 255, 255, 0.1)';
-                    div.innerHTML = `<strong>${key}:</strong> ${value}`;
-                    systemDetails.appendChild(div);
+                for (const [key, value] of info) {
+                    const p = document.createElement('p');
+                    p.style.margin = '4px 0';
+                    p.innerHTML = `<strong>${key}:</strong> ${value}`;
+                    systemDetails.appendChild(p);
                 }
                 
                 logToConsole('System information collected', 'success');
@@ -2032,8 +2250,11 @@
                 const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
                 
                 if (!gl) {
-                    document.getElementById('webgl-status').textContent = 'Not supported';
-                    document.getElementById('webgl-status').classList.add('log-error');
+                    const webglDetails = document.getElementById('webgl-details');
+                    if (webglDetails) {
+                        webglDetails.innerHTML = '<p>WebGL is not supported in your browser</p>';
+                    }
+                    logToConsole('WebGL is not supported in your browser', 'error');
                     return;
                 }
                 
@@ -2044,18 +2265,22 @@
                 const version = gl.getParameter(gl.VERSION);
                 const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
                 
-                // Update UI
-                document.getElementById('webgl-status').textContent = 'Supported';
-                document.getElementById('webgl-status').classList.add('log-success');
-                document.getElementById('webgl-vendor').textContent = vendor;
-                document.getElementById('webgl-renderer').textContent = renderer;
-                document.getElementById('webgl-version').textContent = version;
-                document.getElementById('webgl-texture-size').textContent = `${maxTextureSize}x${maxTextureSize}`;
+                // Update WebGL info in the system tab
+                const webglDetails = document.getElementById('webgl-details');
+                if (webglDetails) {
+                    webglDetails.innerHTML = `
+                        <p><strong>Vendor:</strong> ${vendor}</p>
+                        <p><strong>Renderer:</strong> ${renderer}</p>
+                        <p><strong>Version:</strong> ${version}</p>
+                        <p><strong>Max Texture Size:</strong> ${maxTextureSize}x${maxTextureSize}</p>
+                    `;
+                } else {
+                    console.error('WebGL details element not found');
+                }
                 
                 logToConsole('WebGL information collected', 'success');
             }
             
-            // Initialize WebGL canvas
             function initWebGLCanvas() {
                 const canvas = document.getElementById('webgl-canvas');
                 const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
