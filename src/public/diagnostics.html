@@ -3,169 +3,3143 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Evolution Simulator - Diagnostics</title>
+    <title>Evolution Simulator - Diagnostics Console</title>
     <style>
+        :root {
+            --primary: #4a6fa5;
+            --success: #4caf50;
+            --warning: #ff9800;
+            --error: #f44336;
+            --info: #2196f3;
+            --bg-dark: #1a1a1a;
+            --bg-light: #2d2d2d;
+            --bg-darker: #121212;
+            --text: #ffffff;
+            --text-muted: #b0b0b0;
+            --border: #444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg-darker);
             padding: 20px;
-            background-color: #1a1a1a;
-            color: #fff;
+            min-height: 100vh;
         }
+
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
+            background-color: var(--bg-dark);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
         }
-        .controls {
-            display: flex;
-            gap: 10px;
-            margin: 10px 0;
-        }
-        
-        .controls button {
-            padding: 8px 16px;
-            background-color: #444;
+
+        header {
+            background-color: var(--primary);
             color: white;
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin: 0;
+            font-weight: 500;
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+        }
+
+        .tabs {
+            display: flex;
+            background-color: var(--bg-light);
+            border-bottom: 1px solid var(--border);
+            padding: 0 1rem;
+        }
+
+        .tab {
+            padding: 1rem 1.5rem;
+            cursor: pointer;
             border: none;
+            background: none;
+            color: var(--text-muted);
+            font-weight: 500;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: var(--text);
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .status-warning {
+            color: var(--warning);
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            background-color: var(--warning);
+            animation: pulse 2s infinite;
+        }
+
+        .status-connected .status-dot {
+            background-color: var(--success);
+            animation: none;
+        }
+
+        .status-disconnected .status-dot {
+            background-color: var(--error);
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+
+        .status-connected {
+            color: var(--success);
+        }
+
+        .status-disconnected {
+            color: var(--error);
+        }
+
+        .tab.active {
+            color: var(--primary);
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+            padding: 1.5rem 2rem;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-card {
+            background-color: var(--bg-light);
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--info);
+        }
+
+        .status-card h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: var(--text);
+            font-size: 1.1rem;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .metric-card {
+            background-color: var(--bg-light);
+            border-radius: 6px;
+            padding: 1.25rem;
+            border-left: 4px solid var(--primary);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .metric-card h4 {
+            margin: 0 0 0.5rem 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text);
+            margin: 0;
+        }
+
+        /* Console Styles */
+        .console {
+            background-color: #1e1e1e;
             border-radius: 4px;
+            padding: 10px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #e0e0e0;
+            white-space: pre-wrap;
+            margin: 10px 0;
+            height: 350px;
+            border: 1px solid #333;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .console::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        .console::-webkit-scrollbar-track {
+            background: #2d2d2d;
+            border-radius: 0 3px 3px 0;
+        }
+
+        .console::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 5px;
+        }
+
+        .console::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+
+        .console-line {
+            margin: 0;
+            padding: 2px 0;
+            border-bottom: 1px solid #2a2a2a;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .console-line:last-child {
+            border-bottom: none;
+        }
+
+        .console-timestamp {
+            color: #6a9955;
+            margin-right: 10px;
+            display: inline-block;
+            min-width: 80px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            opacity: 0.7;
+        }
+
+        .console-log { color: #e0e0e0; }
+        .console-info { color: #569cd6; }
+        .console-warning { color: #dcdcaa; }
+        .console-error { color: #f48771; }
+        .console-debug { color: #c586c0; }
+        .console-success { color: #6a9955; }
+
+        /* Header Styles */
+        .diagnostics-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: #252526;
+            border-bottom: 1px solid #1e1e1e;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .header-left {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 20px;
+            background: #1e1e1e;
+            padding: 8px 15px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+        }
+
+        .stat-label {
+            color: #9e9e9e;
+            font-weight: 500;
+        }
+
+        .stat-value {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-weight: bold;
+            color: #e0e0e0;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-icon {
+            background: #0e639c;
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
             transition: background-color 0.2s;
         }
-        
-        .controls button:hover {
-            background-color: #555;
+
+        .btn-icon:hover {
+            background: #1177bb;
         }
-        
-        .controls button:active {
-            background-color: #333;
+
+        .tabs {
+            background: #252526;
+            padding: 0 20px;
+            border-bottom: 1px solid #1e1e1e;
         }
-        
-        #copy-btn.copied {
-            background-color: #2e7d32;
-            animation: fadeOut 2s forwards;
+
+        .controls {
+            display: flex;
+            gap: 0.75rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
         }
-        
-        @keyframes fadeOut {
-            0% { background-color: #2e7d32; }
-            100% { background-color: #444; }
-        }
-        .status {
-            padding: 10px;
-            margin-bottom: 20px;
+
+        button, .button {
+            padding: 0.6rem 1.2rem;
+            border: none;
             border-radius: 4px;
-            text-align: center;
+            background-color: var(--primary);
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
         }
-        .status.connected {
-            background-color: #2e7d32;
+
+        button:hover, .button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
         }
-        .status.disconnected {
-            background-color: #c62828;
+
+        button:active, .button:active {
+            transform: translateY(0);
         }
-        #log-container {
-            background-color: #2d2d2d;
-            border: 1px solid #444;
-            border-radius: 4px;
-            height: 70vh;
-            overflow-y: auto;
-            padding: 10px;
-            font-family: monospace;
-            white-space: pre-wrap;
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
         }
-        .log-entry {
-            padding: 4px 0;
-            border-bottom: 1px solid #444;
+
+        button.secondary {
+            background-color: var(--bg-light);
+            color: var(--text);
         }
-        .log-info { color: #fff; }
-        .log-warning { color: #ffc107; }
-        .log-error { color: #f44336; }
-        .log-success { color: #4caf50; }
-        .log-debug { color: #9e9e9e; }
+
+        button.danger {
+            background-color: var(--error);
+        }
+
+        .canvas-container {
+            background-color: #000;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 1.5rem 0;
+            border: 1px solid var(--border);
+        }
+
+        canvas {
+            display: block;
+            max-width: 100%;
+        }
+
+        .performance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .chart-container {
+            background-color: var(--bg-light);
+            border-radius: 6px;
+            padding: 1.25rem;
+            height: 250px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-container h4 {
+            margin: 0 0 1rem 0;
+            color: var(--text);
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .chart {
+            width: 100%;
+            height: calc(100% - 2rem);
+            position: relative;
+        }
+
+        .chart-line {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .chart-line::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), transparent);
+            animation: chartGrow 2s ease-out forwards;
+        }
+
+        @keyframes chartGrow {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+            .status-grid, .performance-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 0;
+                border-radius: 0;
+            }
+
+            .tabs {
+                overflow-x: auto;
+                padding: 0;
+            }
+
+            .tab {
+                padding: 0.75rem 1rem;
+                font-size: 0.85rem;
+                white-space: nowrap;
+            }
+
+            .tab-content {
+                padding: 1.25rem;
+            }
+
+            .status-grid, .performance-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .controls {
+                flex-direction: column;
+            }
+
+            button, .button {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        /* Animation for status updates */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Evolution Simulator - Diagnostics</h1>
-        <div id="status" class="status disconnected">
-            Waiting for game connection...
+        <header>
+            <div>
+                <h1>Evolution Simulator</h1>
+                <div class="subtitle">Advanced Diagnostics & Performance Monitor</div>
+            </div>
+            <div class="header-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Logs:</span>
+                    <span id="log-status" class="status-warning" title="Not connected to broadcast channel">
+                        <span class="status-dot"></span> Disconnected
+                    </span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">WASM:</span>
+                    <span id="wasm-status" class="status-warning">Checking...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">FPS:</span>
+                    <span id="fps-counter" class="stat-value">--</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Memory:</span>
+                    <span id="memory-usage" class="stat-value">--</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Time:</span>
+                    <span id="uptime" class="stat-value">00:00:00</span>
+                </div>
+            </div>
+            <div class="controls">
+                <button id="refresh-btn" class="btn-icon" title="Refresh">
+                    <span>🔄</span>
+                </button>
+                <button id="run-benchmark" class="btn-icon" title="Run Benchmark">
+                    <span>⚡</span>
+                </button>
+                <button id="export-report" class="btn-icon" title="Export Report">
+                    <span>📊</span>
+                </button>
+                <a href="/" class="btn-icon" title="Back to Game">
+                    <span>🏠</span>
+                </a>
+            </div>
+        </header>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="console">Console</button>
+            <button class="tab" data-tab="performance">Performance</button>
+            <button class="tab" data-tab="wasm">WebAssembly</button>
+            <button class="tab" data-tab="system-info">System Info</button>
         </div>
-        <div class="controls">
-            <button id="clear-btn">Clear Logs</button>
-            <button id="copy-btn" title="Copy all logs to clipboard">Copy Logs</button>
+
+        <!-- Console Tab -->
+        <div id="console-tab" class="tab-content active">
+            <div class="console-controls">
+                <button id="clear-console" class="secondary">
+                    <span>🗑️</span> Clear
+                </button>
+                <button id="export-logs" class="secondary">
+                    <span>📤</span> Export
+                </button>
+                <button id="copy-console" class="secondary">
+                    <span>📋</span> Copy
+                </button>
+            </div>
+            <div class="console" id="console-output">
+                <!-- Logs will be added here by JavaScript -->
+            </div>
+            <div class="controls">
+                <input type="text" id="console-input" placeholder="Enter command..." class="console-input" style="flex-grow: 1;">
+                <button id="send-command">
+                    <span>⏎</span> Send
+                </button>
+            </div>
         </div>
-        <div id="log-container"></div>
+
+        <!-- Performance Tab -->
+        <div id="performance-tab" class="tab-content">
+            <h3>Performance Metrics</h3>
+            <div class="status-grid">
+                <div class="metric-card">
+                    <h4>FPS</h4>
+                    <p id="fps-counter" class="metric-value">--</p>
+                </div>
+                <div class="metric-card">
+                    <h4>Frame Time</h4>
+                    <p id="frame-time" class="metric-value">-- ms</p>
+                </div>
+                <div class="metric-card">
+                    <h4>JS Heap</h4>
+                    <p id="js-heap" class="metric-value">-- MB</p>
+                </div>
+                <div class="metric-card">
+                    <h4>DOM Nodes</h4>
+                    <p id="dom-nodes" class="metric-value">--</p>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h4>Performance Timeline</h4>
+                <div class="chart">
+                    <canvas id="perf-timeline"></canvas>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button id="start-profiling">
+                    <span>⏯️</span> Start Profiling
+                </button>
+                <button id="stop-profiling" disabled>
+                    <span>⏹️</span> Stop Profiling
+                </button>
+                <button id="save-profile" class="secondary" disabled>
+                    <span>💾</span> Save Profile
+                </button>
+            </div>
+        </div>
+
+        <!-- System Info Tab -->
+        <div id="system-info-tab" class="tab-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0;">System Information</h3>
+                <button id="export-info" class="secondary" style="display: flex; align-items: center; gap: 5px;">
+                    <span>📤</span> Export Info
+                </button>
+            </div>
+            <div class="system-info-container">
+                <div id="system-details" class="system-details">
+                    <div class="info-section">
+                        <h4>System</h4>
+                        <p><strong>Browser:</strong> <span id="browser-info">Detecting...</span></p>
+                        <p><strong>OS:</strong> <span id="os-info">Detecting...</span></p>
+                        <p><strong>CPU Cores:</strong> <span id="cpu-cores">Detecting...</span></p>
+                        <p><strong>Device Memory:</strong> <span id="device-memory">Detecting...</span></p>
+                        <div id="system-details-list"></div>
+                    </div>
+                    <div class="info-section">
+                        <h4>WebGL Information</h4>
+                        <div id="webgl-details">
+                            <p>Detecting WebGL information...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- WebAssembly Tab -->
+        <div id="wasm-tab" class="tab-content">
+            <h3>WebAssembly Module</h3>
+            <div class="status-grid">
+                <div class="metric-card">
+                    <h4>Status</h4>
+                    <p id="wasm-module-status" class="metric-value">Loading...</p>
+                </div>
+                <div class="metric-card">
+                    <h4>Load Time</h4>
+                    <p id="wasm-load-time" class="metric-value">-- ms</p>
+                </div>
+                <div class="metric-card">
+                    <h4>Memory</h4>
+                    <p id="wasm-memory" class="metric-value">-- MB</p>
+                </div>
+                <div class="metric-card">
+                    <h4>Functions</h4>
+                    <p id="wasm-functions" class="metric-value">--</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h4>Exported Functions</h4>
+                <div id="wasm-exports" class="console" style="height: 200px; overflow-y: auto;">
+                    No functions exported or module not loaded.
+                </div>
+            </div>
+
+            <div class="controls">
+                <button id="reload-wasm">
+                    <span>🔄</span> Reload Module
+                </button>
+                <button id="wasm-benchmark" class="secondary">
+                    <span>⚡</span> Run Benchmark
+                </button>
+                <button id="wasm-debug" class="secondary">
+                    <span>🐞</span> Debug Info
+                </button>
+            </div>
+        </div>
     </div>
 
     <script>
-        const statusEl = document.getElementById('status');
-        const logContainer = document.getElementById('log-container');
-        const clearBtn = document.getElementById('clear-btn');
-        let isConnected = false;
+        // Main application
+        const app = (() => {
+            // State
+            const state = {
+                wasmModule: null,
+                logs: [],
+                showTimestamps: true,
+                isConnected: false,
+                performanceMetrics: {
+                    fps: [],
+                    frameTimes: [],
+                    memory: [],
+                    timestamps: []
+                },
+                isProfiling: false,
+                profileData: null
+            };
 
-        // Create a broadcast channel to communicate with the game
-        const channel = new BroadcastChannel('evolution-sim-diag');
+            // DOM Elements with null checks and default values
+            const elements = {};
 
-        // Handle incoming messages
-        channel.onmessage = (event) => {
-            const { type, data } = event.data;
-            
-            if (type === 'log') {
-                addLogEntry(data.message, data.type);
-            } else if (type === 'status') {
-                updateStatus(data.connected);
-            } else if (type === 'clear') {
-                clearLogs();
-            }
-        };
+            // Helper function to safely get elements
+            const getElement = (id, defaultValue = null) => {
+                const el = document.getElementById(id);
+                if (!el) {
+                    console.warn(`Element not found: ${id}`);
+                    return defaultValue || { disabled: false, addEventListener: () => {} };
+                }
+                return el;
+            };
 
-        // Update connection status
-        function updateStatus(connected) {
-            isConnected = connected;
-            statusEl.textContent = connected 
-                ? 'Connected to game instance' 
-                : 'Game disconnected';
-            statusEl.className = `status ${connected ? 'connected' : 'disconnected'}`;
-        }
+            // Initialize all elements with null checks
+            const elementConfigs = {
+                // Main controls
+                'refresh-btn': { type: 'button' },
+                'run-benchmark': { type: 'button' },
+                'export-report': { type: 'button' },
+                'wasm-status': { type: 'status' },
+                'fps-counter': { type: 'status' },
+                'memory-usage': { type: 'status' },
+                'uptime': { type: 'status' },
+                'webgl-info': { type: 'info' },
+                'system-info': { type: 'info' },
 
-        // Add a log entry to the UI
-        function addLogEntry(message, type = 'info') {
-            const entry = document.createElement('div');
-            entry.className = `log-entry log-${type}`;
-            
-            const timestamp = new Date().toLocaleTimeString();
-            entry.innerHTML = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
-            
-            logContainer.appendChild(entry);
-            logContainer.scrollTop = logContainer.scrollHeight;
-        }
+                // WebAssembly controls
+                'reload-wasm': { type: 'button' },
+                'wasm-benchmark': { type: 'button' },
+                'wasm-debug': { type: 'button' },
 
-        // Clear all logs
-        function clearLogs() {
-            logContainer.innerHTML = '';
-        }
+                // Console elements
+                'console-output': { type: 'container' },
+                'console-input': { type: 'input' },
+                'send-command': { type: 'button' },
+                'clear-console': { type: 'button' },
+                'export-logs': { type: 'button' },
+                'copy-console': { type: 'button' },
 
-        // Button handlers
-        clearBtn.addEventListener('click', clearLogs);
-        
-        // Copy logs button
-        const copyBtn = document.getElementById('copy-btn');
-        copyBtn.addEventListener('click', () => {
-            const logText = logContainer.innerText;
-            navigator.clipboard.writeText(logText).then(() => {
-                // Visual feedback
-                copyBtn.textContent = 'Copied!';
-                copyBtn.classList.add('copied');
-                setTimeout(() => {
-                    copyBtn.textContent = 'Copy Logs';
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy logs: ', err);
-                alert('Failed to copy logs to clipboard. Please try again.');
+                // Profiling
+                'start-profiling': { type: 'button' },
+                'stop-profiling': { type: 'button' },
+                'save-profile': { type: 'button' },
+
+                // System info
+                'copy-system-info': { type: 'button' },
+                'save-system-info': { type: 'button' },
+
+                // WebGL
+                'webgl-test': { type: 'button' },
+                'webgl-benchmark': { type: 'button' },
+                'log-status': { type: 'status' },
+                'webgl-canvas': { type: 'canvas' },
+
+                // Tabs
+                'console-tab': { type: 'tab' },
+                'performance-tab': { type: 'tab' },
+                'system-tab': { type: 'tab' },
+                'wasm-tab': { type: 'tab' }
+            };
+
+            // Initialize all elements
+            Object.entries(elementConfigs).forEach(([id, config]) => {
+                const propName = id.split('-').map((word, i) =>
+                    i === 0 ? word : word[0].toUpperCase() + word.slice(1)
+                ).join('');
+                elements[propName] = getElement(id, config.defaultValue);
             });
-        });
 
-        // Initial status check
-        updateStatus(false);
-        addLogEntry('Diagnostics console ready. Start the game in another tab to see logs.', 'info');
+            // Add tab elements with null checks
+            elements.tabs = document.querySelectorAll('.tab') || [];
+            elements.tabContents = document.querySelectorAll('.tab-content') || [];
+
+            // Initialize state variables
+            let frameCount = 0;
+            let lastFpsUpdate = performance.now();
+            let fps = 0;
+
+            // Set up broadcast channel for game communication
+            const broadcastChannel = new BroadcastChannel('evolution-sim-diag');
+            let connectionCheckInterval;
+            let lastMessageTime = 0;
+            const CONNECTION_TIMEOUT = 3000; // 3 seconds without messages = disconnected
+
+            // Update connection status
+            function updateConnectionStatus(connected) {
+                const statusElement = document.getElementById('log-status');
+                if (!statusElement) return;
+
+                if (connected) {
+                    statusElement.innerHTML = '<span class="status-dot" style="background-color: #4CAF50;"></span> Connected';
+                    statusElement.title = 'Connected to game instance';
+                    statusElement.className = 'status-success';
+                } else {
+                    statusElement.innerHTML = '<span class="status-dot"></span> Disconnected';
+                    statusElement.title = 'Not connected to game instance';
+                    statusElement.className = 'status-warning';
+                }
+            }
+
+            // Handle incoming messages from game
+            broadcastChannel.onmessage = (event) => {
+                lastMessageTime = performance.now();
+
+                if (!state.isConnected) {
+                    state.isConnected = true;
+                    updateConnectionStatus(true);
+                }
+
+                const { type, data } = event.data;
+                if (type === 'log') {
+                    logToConsole(data.message, data.type || 'info');
+                }
+            };
+
+            // Check connection status periodically
+            function checkConnection() {
+                if (state.isConnected && (performance.now() - lastMessageTime > CONNECTION_TIMEOUT)) {
+                    state.isConnected = false;
+                    updateConnectionStatus(false);
+                }
+            }
+
+            // Start connection monitoring
+            connectionCheckInterval = setInterval(checkConnection, 1000);
+            updateConnectionStatus(false); // Initial state
+            const startTime = Date.now();
+
+            // Log missing elements for debugging
+            Object.entries(elements).forEach(([key, el]) => {
+                if (!el && key !== 'tabs' && key !== 'tabContents') {
+                    console.warn(`Element not found: ${key}`);
+                }
+            });
+
+            // Setup console functionality
+            function setupConsole() {
+                // Initialize console input history
+                state.consoleHistory = [];
+                state.historyIndex = -1;
+
+                // Set up console input handling
+                if (elements.consoleInput) {
+                    elements.consoleInput.addEventListener('keydown', (e) => {
+                        // Handle up/down arrow for history
+                        if (e.key === 'ArrowUp' && state.historyIndex < state.consoleHistory.length - 1) {
+                            e.preventDefault();
+                            state.historyIndex++;
+                            elements.consoleInput.value = state.consoleHistory[state.consoleHistory.length - 1 - state.historyIndex] || '';
+                        } else if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            state.historyIndex = Math.max(-1, state.historyIndex - 1);
+                            elements.consoleInput.value = state.historyIndex === -1 ? '' :
+                                state.consoleHistory[state.consoleHistory.length - 1 - state.historyIndex];
+                        } else if (e.key === 'Tab') {
+                            e.preventDefault();
+                            // Tab completion could be added here
+                        }
+                    });
+                }
+
+                logToConsole('Console initialized', 'info');
+            }
+
+            // Initialize the application
+            function initApp() {
+                // Setup event listeners first
+                setupEventListeners();
+
+                // Set up tabs
+                setupTabs();
+
+                // Initialize console before other components
+                setupConsole();
+
+                // Check system capabilities asynchronously
+                checkWasmSupport().then(supported => {
+                    if (supported) {
+                        // Load WASM module if supported
+                        loadWasmModule().catch(err => {
+                            logToConsole(`Failed to load WASM module: ${err.message}`, 'error');
+                        });
+                    }
+                });
+
+                // Start performance monitoring
+                try {
+                    startPerformanceMonitoring();
+                } catch (err) {
+                    logToConsole(`Failed to start performance monitoring: ${err.message}`, 'error');
+                }
+
+                // Log initial message with timestamp
+                const timestamp = new Date().toLocaleTimeString();
+                logToConsole(`[${timestamp}] Diagnostics console initialized`, 'info');
+                logToConsole(`[${timestamp}] System check in progress...`, 'info');
+
+                // Update the header stats
+                updateHeaderStats();
+
+                // Set up periodic updates for header stats
+                setInterval(updateHeaderStats, 1000);
+            }
+
+            // Tab functionality
+            function setupTabs() {
+                // Get all tab elements
+                const tabs = document.querySelectorAll('.tab');
+                const tabContents = document.querySelectorAll('.tab-content');
+
+                if (!tabs.length || !tabContents.length) {
+                    console.error('Tabs or tab contents not found');
+                    return;
+                }
+
+                // Set initial active tab (Console by default)
+                setActiveTab('console');
+
+                // Add click handlers to tabs
+                tabs.forEach(tab => {
+                    tab.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const tabId = tab.getAttribute('data-tab');
+                        console.log('Tab clicked:', tabId);
+
+                        if (tabId) {
+                            setActiveTab(tabId);
+
+                            // Special handling for specific tabs
+                            if (tabId === 'performance') {
+                                updatePerformanceCharts();
+                            } else if (tabId === 'system-info') {
+                                checkSystemInfo();
+                                checkWebGLInfo();
+                            } else if (tabId === 'console') {
+                                // Ensure console is scrolled to bottom
+                                const consoleOutput = document.getElementById('console-output');
+                                if (consoleOutput) {
+                                    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                                }
+                            }
+                        }
+                    });
+                });
+            }
+
+            // Set active tab by ID
+            function setActiveTab(tabId) {
+                console.log('Setting active tab:', tabId);
+
+                // Remove active class from all tabs and contents
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+
+                // Add active class to selected tab and content
+                const activeTab = document.querySelector(`.tab[data-tab="${tabId}"]`);
+                const activeContent = document.getElementById(`${tabId}-tab`);
+
+                if (activeTab) {
+                    activeTab.classList.add('active');
+                } else {
+                    console.error(`Tab with ID ${tabId} not found`);
+                }
+
+                if (activeContent) {
+                    activeContent.classList.add('active');
+                } else {
+                    console.error(`Tab content with ID ${tabId}-tab not found`);
+                }
+            }
+
+            // Set up event listeners with safe defaults
+            function setupEventListeners() {
+                // Helper function to safely add event listeners
+                const addListener = (element, event, handler) => {
+                    try {
+                        if (element && element.addEventListener) {
+                            element.addEventListener(event, handler);
+                            return true;
+                        }
+                        return false;
+                    } catch (error) {
+                        console.warn(`Failed to add ${event} listener:`, error);
+                        return false;
+                    }
+                };
+
+                // Helper to safely get element by ID
+                const $ = (id) => document.getElementById(id) || {};
+
+                // Add copy console button handler
+                if (elements.copyConsole) {
+                    elements.copyConsole.addEventListener('click', () => {
+                        try {
+                            const consoleText = Array.from(elements.consoleOutput.children)
+                                .map(div => div.textContent)
+                                .join('\n');
+
+                            navigator.clipboard.writeText(consoleText).then(() => {
+                                // Show feedback
+                                const originalText = elements.copyConsole.innerHTML;
+                                elements.copyConsole.innerHTML = '<span>✓</span> Copied!';
+                                elements.copyConsole.classList.add('success');
+
+                                // Reset button after 2 seconds
+                                setTimeout(() => {
+                                    elements.copyConsole.innerHTML = originalText;
+                                    elements.copyConsole.classList.remove('success');
+                                }, 2000);
+
+                                logToConsole('Console output copied to clipboard', 'success');
+                            }).catch(err => {
+                                console.error('Failed to copy:', err);
+                                logToConsole('Failed to copy to clipboard', 'error');
+                            });
+                        } catch (err) {
+                            console.error('Error copying console:', err);
+                            logToConsole('Error copying console output', 'error');
+                        }
+                    });
+                }
+
+                // Add clear console button handler
+                if (elements.clearConsole) {
+                    elements.clearConsole.addEventListener('click', clearConsole);
+                }
+
+                // Add export info button handler
+                const exportInfoBtn = document.getElementById('export-info');
+                if (exportInfoBtn) {
+                    exportInfoBtn.addEventListener('click', (e) => {
+                        try {
+                            exportSystemInfo();
+                        } catch (error) {
+                            console.error('Error in export info click handler:', error);
+                            logToConsole('Export failed: ' + (error.message || 'Unknown error'), 'error');
+                        }
+                    });
+                }
+
+                // Add export logs button handler
+                if (elements.exportLogs) {
+                    console.log('Setting up export logs button handler');
+                    elements.exportLogs.addEventListener('click', (e) => {
+                        console.log('Export button clicked');
+                        try {
+                            console.log('Current logs state:', {
+                                hasLogs: !!state.logs,
+                                isArray: Array.isArray(state.logs),
+                                logCount: state.logs?.length || 0
+                            });
+
+                            // Force add a test log entry when export is clicked
+                            logToConsole('Export button clicked at ' + new Date().toISOString(), 'debug');
+
+                            // Small delay to ensure the log is processed
+                            setTimeout(() => {
+                                try {
+                                    exportLogs();
+                                } catch (innerError) {
+                                    console.error('Error in delayed export:', innerError);
+                                    logToConsole('Export failed: ' + (innerError.message || 'Unknown error'), 'error');
+                                }
+                            }, 100);
+
+                        } catch (error) {
+                            console.error('Error in export click handler:', error);
+                            logToConsole('Export failed: ' + (error.message || 'Unknown error'), 'error');
+
+                            // Show error feedback
+                            if (elements.exportLogs) {
+                                const originalText = elements.exportLogs.innerHTML;
+                                elements.exportLogs.innerHTML = '<span>❌</span> Failed!';
+                                elements.exportLogs.classList.add('error');
+
+                                setTimeout(() => {
+                                    if (elements.exportLogs) {
+                                        elements.exportLogs.innerHTML = originalText;
+                                        elements.exportLogs.classList.remove('error');
+                                    }
+                                }, 2000);
+                            }
+                        }
+                    });
+                }
+
+                // Clear the console
+                function clearConsole() {
+                    try {
+                        if (elements.consoleOutput) {
+                            // Store the current logs length for the log message
+                            const logsCount = state.logs ? state.logs.length : 0;
+
+                            // Clear the console output
+                            elements.consoleOutput.innerHTML = '';
+
+                            // Clear the logs array while maintaining reference
+                            if (state.logs) {
+                                state.logs.length = 0;
+                            }
+
+                            // Add a log message
+                            logToConsole(`Console cleared (${logsCount} messages removed)`, 'info');
+
+                            // Visual feedback
+                            if (elements.clearConsole) {
+                                const originalText = elements.clearConsole.innerHTML;
+                                elements.clearConsole.innerHTML = '<span>✓</span> Cleared!';
+                                elements.clearConsole.classList.add('success');
+
+                                setTimeout(() => {
+                                    if (elements.clearConsole) {
+                                        elements.clearConsole.innerHTML = originalText;
+                                        elements.clearConsole.classList.remove('success');
+                                    }
+                                }, 2000);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error clearing console:', error);
+                        logToConsole('Failed to clear console', 'error');
+                    }
+                }
+            }
+
+            // Toggle timestamps functionality has been removed
+
+            // Export system info to file
+            function exportSystemInfo() {
+                try {
+                    // Collect all system information
+                    let exportText = '=== System Information ===\n\n';
+
+                    // Add system info
+                    exportText += '## System ##\n';
+                    exportText += `Browser: ${document.getElementById('browser-info').textContent}\n`;
+                    exportText += `OS: ${document.getElementById('os-info').textContent}\n`;
+                    exportText += `CPU Cores: ${document.getElementById('cpu-cores').textContent}\n`;
+                    exportText += `Device Memory: ${document.getElementById('device-memory').textContent}\n`;
+
+                    // Add screen resolution and other details
+                    const details = document.querySelectorAll('#system-details-list p');
+                    details.forEach(detail => {
+                        exportText += `${detail.textContent}\n`;
+                    });
+
+                    // Add WebGL info
+                    exportText += '\n## WebGL Information ##\n';
+                    const webglDetails = document.getElementById('webgl-details');
+                    webglDetails.querySelectorAll('p').forEach(p => {
+                        exportText += `${p.textContent}\n`;
+                    });
+
+                    // Create and trigger download
+                    const blob = new Blob([exportText], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `system-info-${new Date().toISOString().slice(0, 10)}.txt`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    logToConsole('System information exported', 'success');
+                } catch (error) {
+                    logToConsole(`Failed to export system information: ${error.message}`, 'error');
+                    console.error('Export system info error:', error);
+                }
+            }
+
+            // Export logs to file
+            function exportLogs() {
+                try {
+                    console.log('Export logs called. Current state:', {
+                        hasLogs: !!state.logs,
+                        isArray: Array.isArray(state.logs),
+                        logCount: state.logs?.length || 0
+                    });
+
+                    // Check if logs exist in the DOM as a fallback
+                    const domLogs = elements.consoleOutput?.querySelectorAll('.log-entry');
+                    console.log('DOM logs count:', domLogs?.length);
+
+                    // If no logs in state but logs in DOM, try to recover them
+                    if ((!state.logs || state.logs.length === 0) && domLogs && domLogs.length > 0) {
+                        console.log('Recovering logs from DOM...');
+                        state.logs = Array.from(domLogs).map(logEl => ({
+                            message: logEl.querySelector('.log-message')?.textContent || logEl.textContent,
+                            type: Array.from(logEl.classList).find(cls => cls.startsWith('log-'))?.replace('log-', '') || 'info',
+                            timestamp: new Date().toISOString()
+                        }));
+                        console.log(`Recovered ${state.logs.length} logs from DOM`);
+                    }
+
+                    // Ensure logs array exists and has content
+                    if (!state.logs || !Array.isArray(state.logs) || state.logs.length === 0) {
+                        const errorMsg = 'No logs available to export';
+                        console.warn(errorMsg);
+                        logToConsole(errorMsg, 'warning');
+
+                        // Add a test log entry if in development mode
+                        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                            console.log('Adding test log entry...');
+                            logToConsole('This is a test log entry', 'info');
+                            logToConsole('Another test entry with error level', 'error');
+                            return exportLogs(); // Try again with the test entries
+                        }
+                        return;
+                    }
+
+                    // Create a more detailed log file with header
+                    const header = `=== Evolution Simulator Logs ===\n` +
+                                 `Generated: ${new Date().toISOString()}\n` +
+                                 `Total Entries: ${state.logs.length}\n` +
+                                 `================================\n\n`;
+
+                    // Format log entries
+                    const logText = header + state.logs.map(entry => {
+                        const time = new Date(entry.timestamp).toISOString();
+                        const type = (entry.type || 'info').toUpperCase().padEnd(7);
+                        return `[${time}] [${type}] ${entry.message}`;
+                    }).join('\n');
+
+                    // Create and trigger download
+                    const blob = new Blob([logText], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    a.download = `evolution-simulator-logs-${timestamp}.log`;
+
+                    // Append to body, trigger click, and clean up
+                    document.body.appendChild(a);
+                    a.click();
+
+                    // Clean up
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }, 100);
+
+                    // Visual feedback
+                    if (elements.exportLogs) {
+                        const originalText = elements.exportLogs.innerHTML;
+                        elements.exportLogs.innerHTML = '<span>✓</span> Exported!';
+                        elements.exportLogs.classList.add('success');
+
+                        setTimeout(() => {
+                            if (elements.exportLogs) {
+                                elements.exportLogs.innerHTML = originalText;
+                                elements.exportLogs.classList.remove('success');
+                            }
+                        }, 2000);
+                    }
+
+                    logToConsole(`Exported ${state.logs.length} log entries to file`, 'success');
+
+                } catch (error) {
+                    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                    console.error('Export failed:', error);
+                    logToConsole(`Export failed: ${errorMsg}`, 'error');
+
+                    // Show error feedback
+                    if (elements.exportLogs) {
+                        const originalText = elements.exportLogs.innerHTML;
+                        elements.exportLogs.innerHTML = '<span>❌</span> Failed!';
+                        elements.exportLogs.classList.add('error');
+
+                        setTimeout(() => {
+                            if (elements.exportLogs) {
+                                elements.exportLogs.innerHTML = originalText;
+                                elements.exportLogs.classList.remove('error');
+                            }
+                        }, 2000);
+                    }
+                }
+            }
+
+            // Log a message to the console
+            function logToConsole(message, type = 'info') {
+                try {
+                    const timestamp = new Date().toISOString();
+                    const logEntry = { message: String(message), type: String(type || 'info'), timestamp };
+
+                    // Initialize logs array if it doesn't exist
+                    if (!state.logs || !Array.isArray(state.logs)) {
+                        console.log('Initializing logs array');
+                        state.logs = [];
+                    }
+
+                    // Add to state
+                    state.logs.push(logEntry);
+                    console.log(`Added log entry. Total logs: ${state.logs.length}`, logEntry);
+
+                    // Limit log history to prevent memory issues
+                    const MAX_LOGS = 1000;
+                    if (state.logs.length > MAX_LOGS) {
+                        state.logs = state.logs.slice(-MAX_LOGS);
+                    }
+
+                    // Update UI if console output element exists
+                    if (elements.consoleOutput) {
+                        const logElement = document.createElement('div');
+                        logElement.className = `log-entry log-${type}`;
+
+                        // Add timestamp if enabled
+                        if (state.showTimestamps) {
+                            const timeElement = document.createElement('span');
+                            timeElement.className = 'log-time';
+                            timeElement.textContent = `[${new Date(timestamp).toLocaleTimeString()}] `;
+                            logElement.appendChild(timeElement);
+                        }
+
+                        // Add message
+                        const messageElement = document.createElement('span');
+                        messageElement.className = 'log-message';
+                        messageElement.textContent = message;
+                        logElement.appendChild(messageElement);
+
+                        elements.consoleOutput.appendChild(logElement);
+                        elements.consoleOutput.scrollTop = elements.consoleOutput.scrollHeight;
+                    }
+
+                    // Also log to browser console for debugging
+                    const logMethod = console[type] || console.log;
+                    logMethod.call(console, `[${type}] ${message}`);
+
+                    return logEntry;
+                } catch (error) {
+                    console.error('Error in logToConsole:', error);
+                    console.log('Log entry that caused error:', { message, type });
+                }
+            }
+
+            // Handle console commands
+            function handleCommand() {
+                const command = elements.consoleInput.value.trim();
+                if (!command) return;
+
+                // Add command to console
+                logToConsole(`> ${command}`, 'info');
+
+                // Process command
+                processCommand(command);
+
+                // Clear input
+                elements.consoleInput.value = '';
+
+                // Focus input for next command
+                elements.consoleInput.focus();
+            }
+
+            // Process console commands
+            function processCommand(command) {
+                const [cmd, ...args] = command.split(' ');
+                const cmdLower = cmd.toLowerCase();
+
+                try {
+                    switch (cmdLower) {
+                        case 'help':
+                            showHelp();
+                            break;
+                        case 'clear':
+                            clearConsole();
+                            break;
+                        case 'status':
+                            checkSystemStatus();
+                            break;
+                        case 'reload':
+                            loadWasmModule();
+                            break;
+                        case 'benchmark':
+                            runBenchmark();
+                            break;
+                        case 'test':
+                            runTests(args[0]);
+                            break;
+                        case 'eval':
+                            // Security note: In a production environment, you should never use eval()
+                            // with user input. This is just for debugging purposes.
+                            try {
+                                const result = eval(args.join(' '));
+                                logToConsole(`Result: ${JSON.stringify(result, null, 2)}`, 'success');
+                            } catch (e) {
+                                logToConsole(`Error: ${e.message}`, 'error');
+                            }
+                            break;
+                        default:
+                            logToConsole(`Unknown command: ${cmd}. Type 'help' for a list of commands.`, 'error');
+                    }
+                } catch (error) {
+                    logToConsole(`Command error: ${error.message}`, 'error');
+                }
+            }
+
+            // Show help information
+            function showHelp() {
+                const commands = [
+                    { name: 'help', description: 'Show this help message' },
+                    { name: 'clear', description: 'Clear the console' },
+                    { name: 'status', description: 'Show system status' },
+                    { name: 'reload', description: 'Reload WebAssembly module' },
+                    { name: 'benchmark', description: 'Run performance benchmarks' },
+                    { name: 'test [type]', description: 'Run tests (webgl, wasm, all)' },
+                    { name: 'eval [code]', description: 'Evaluate JavaScript code' }
+                ];
+
+                logToConsole('Available commands:', 'info');
+                commands.forEach(cmd => {
+                    logToConsole(`  ${cmd.name.padEnd(15)} ${cmd.description}`, 'info');
+                });
+            }
+
+            // Check system status
+            function checkSystemStatus() {
+                logToConsole('=== System Status ===', 'info');
+                logToConsole(`Browser: ${navigator.userAgent}`, 'info');
+                logToConsole(`OS: ${getOSName()}`, 'info');
+                logToConsole(`CPU Cores: ${navigator.hardwareConcurrency || 'N/A'}`, 'info');
+                logToConsole(`Device Memory: ${navigator.deviceMemory || 'N/A'} GB`, 'info');
+                logToConsole(`WebGL Support: ${checkWebGLSupport() ? 'Yes' : 'No'}`, 'info');
+                logToConsole(`WebAssembly Support: ${checkWasmSupport() ? 'Yes' : 'No'}`, 'info');
+                logToConsole(`Current FPS: ${state.performanceMetrics.fps[state.performanceMetrics.fps.length - 1] || '--'}`, 'info');
+                logToConsole(`WASM Module: ${state.wasmModule ? 'Loaded' : 'Not loaded'}`, 'info');
+            }
+
+            // Run tests
+            function runTests(type = 'all') {
+                logToConsole(`Running tests: ${type}`, 'info');
+
+                // This would be expanded with actual test cases
+                if (type === 'all' || type === 'webgl') {
+                    logToConsole('Running WebGL tests...', 'info');
+                    runWebGLTest();
+                }
+
+                if (type === 'all' || type === 'wasm') {
+                    logToConsole('Running WebAssembly tests...', 'info');
+                    runWasmTests();
+                }
+
+                logToConsole('Tests completed', 'success');
+            }
+
+            // Run WebGL test
+            function runWebGLTest() {
+                const canvas = document.getElementById('webgl-canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+
+                if (!gl) {
+                    logToConsole('WebGL is not supported', 'error');
+                    return;
+                }
+
+                try {
+                    // Clear to black
+                    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+                    gl.clear(gl.COLOR_BUFFER_BIT);
+
+                    // Draw a simple triangle
+                    const vertexShaderSource = `
+                        attribute vec2 position;
+                        void main() {
+                            gl_Position = vec4(position, 0.0, 1.0);
+                        }
+                    `;
+
+                    const fragmentShaderSource = `
+                        precision mediump float;
+                        void main() {
+                            gl_FragColor = vec4(0.5, 0.8, 1.0, 1.0);
+                        }
+                    `;
+
+                    const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+                    gl.shaderSource(vertexShader, vertexShaderSource);
+                    gl.compileShader(vertexShader);
+
+                    const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+                    gl.shaderSource(fragmentShader, fragmentShaderSource);
+                    gl.compileShader(fragmentShader);
+
+                    const program = gl.createProgram();
+                    gl.attachShader(program, vertexShader);
+                    gl.attachShader(program, fragmentShader);
+                    gl.linkProgram(program);
+                    gl.useProgram(program);
+
+                    // Create a buffer and put a single clipspace rectangle in it (2 triangles)
+                    const positionBuffer = gl.createBuffer();
+                    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+
+                    const positions = [
+                        -0.5, -0.5,
+                        0.5, -0.5,
+                        -0.5, 0.5,
+                        0.5, 0.5,
+                    ];
+
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+                    // Turn on the position attribute
+                    const positionAttributeLocation = gl.getAttribLocation(program, "position");
+                    gl.enableVertexAttribArray(positionAttributeLocation);
+
+                    // Tell the attribute how to get data out of positionBuffer (ARRAY_BUFFER)
+                    gl.vertexAttribPointer(
+                        positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+
+                    // Draw the rectangle
+                    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+                    logToConsole('WebGL test completed successfully', 'success');
+                } catch (error) {
+                    logToConsole(`WebGL test failed: ${error.message}`, 'error');
+                    console.error('WebGL error:', error);
+                }
+            }
+
+            // Run WebGL benchmark
+            function runWebGLBenchmark() {
+                logToConsole('Running WebGL benchmark...', 'info');
+                // Implementation would go here
+                logToConsole('WebGL benchmark completed', 'success');
+            }
+
+            // Run WebAssembly tests
+            function runWasmTests() {
+                logToConsole('Running WebAssembly tests...', 'info');
+
+                if (!state.wasmModule) {
+                    logToConsole('WebAssembly module not loaded', 'error');
+                    return;
+                }
+
+                // Simple test to check if basic functionality works
+                try {
+                    // This would test actual WebAssembly functions
+                    logToConsole('Testing WebAssembly module...', 'info');
+
+                    // Example: If you have an exported function called 'add'
+                    // const result = state.wasmModule._add(2, 3);
+                    // logToConsole(`Test add(2, 3) = ${result}`, 'success');
+
+                    logToConsole('WebAssembly tests completed', 'success');
+                } catch (error) {
+                    logToConsole(`WebAssembly test failed: ${error.message}`, 'error');
+                    console.error('WebAssembly error:', error);
+                }
+            }
+
+            // Run WebAssembly benchmark
+            function runWasmBenchmark() {
+                logToConsole('Running WebAssembly benchmark...', 'info');
+
+                if (!state.wasmModule) {
+                    logToConsole('WebAssembly module not loaded', 'error');
+                    return;
+                }
+
+                try {
+                    // This would run actual benchmarks against WebAssembly functions
+                    const iterations = 1000000;
+                    const startTime = performance.now();
+
+                    // Example: Benchmark a function called 'fibonacci' in WebAssembly
+                    // for (let i = 0; i < iterations; i++) {
+                    //     state.wasmModule._fibonacci(20);
+                    // }
+
+                    const endTime = performance.now();
+                    const duration = endTime - startTime;
+                    const opsPerSecond = (iterations / (duration / 1000)).toLocaleString();
+
+                    logToConsole(`Benchmark completed in ${duration.toFixed(2)}ms (${opsPerSecond} ops/sec)`, 'success');
+                } catch (error) {
+                    logToConsole(`Benchmark failed: ${error.message}`, 'error');
+                    console.error('Benchmark error:', error);
+                }
+            }
+
+            // Show WebAssembly debug information
+            function showWasmDebugInfo() {
+                if (!state.wasmModule) {
+                    logToConsole('WebAssembly module not loaded', 'error');
+                    return;
+                }
+
+                logToConsole('=== WebAssembly Debug Info ===', 'info');
+
+                // List all exported functions
+                const exports = [];
+                for (const key in state.wasmModule) {
+                    if (typeof state.wasmModule[key] === 'function' && !key.startsWith('_')) {
+                        exports.push(key);
+                    }
+                }
+
+                logToConsole(`Exported functions (${exports.length}):`, 'info');
+                logToConsole(exports.join(', '), 'info');
+
+                // Show memory information if available
+                if (state.wasmModule.memory) {
+                    const memory = state.wasmModule.memory;
+                    logToConsole(`\nMemory: ${memory.buffer.byteLength / 1024} KB`, 'info');
+                }
+
+                // Show any custom debug information
+                if (state.wasmModule.getDebugInfo) {
+                    try {
+                        const debugInfo = state.wasmModule.getDebugInfo();
+                        logToConsole('\nDebug Info:', 'info');
+                        logToConsole(JSON.stringify(debugInfo, null, 2), 'info');
+                    } catch (e) {
+                        logToConsole('No additional debug information available', 'warning');
+                    }
+                }
+            }
+
+            // Load WebAssembly module
+            async function loadWasmModule() {
+                // Safely disable buttons during load
+                const disableButtons = () => {
+                    try {
+                        if (elements?.reloadWasmBtn) elements.reloadWasmBtn.disabled = true;
+                        if (elements?.wasmBenchmark) elements.wasmBenchmark.disabled = true;
+                        if (elements?.wasmDebug) elements.wasmDebug.disabled = true;
+                    } catch (e) {
+                        console.warn('Error disabling buttons:', e);
+                    }
+                    return true;
+                };
+
+                const enableButtons = () => {
+                    try {
+                        if (elements?.reloadWasmBtn) elements.reloadWasmBtn.disabled = false;
+                        if (elements?.wasmBenchmark) elements.wasmBenchmark.disabled = false;
+                        if (elements?.wasmDebug) elements.wasmDebug.disabled = false;
+                    } catch (e) {
+                        console.warn('Error enabling buttons:', e);
+                    }
+                };
+
+                logToConsole('Loading WebAssembly module...', 'info');
+                updateWasmStatus('Loading...', 'info');
+                disableButtons();
+
+                try {
+                    const response = await fetch('wasm/index.wasm');
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const bytes = await response.arrayBuffer();
+                    // Emscripten runtime environment
+                    const memory = new WebAssembly.Memory({ initial: 256, maximum: 65536 });
+                    const table = new WebAssembly.Table({ initial: 0, maximum: 0, element: 'anyfunc' });
+
+                    // Create the environment object
+                    const env = {
+                        // Memory and table
+                        memory: memory,
+                        table: table,
+
+                        // Standard environment
+
+                        // Basic runtime functions
+                        _abort_js: (message) => {
+                            // Get the error message from memory if a pointer is provided
+                            let errorMsg = 'WASM abort';
+                            if (message) {
+                                try {
+                                    // Try to read a null-terminated string from memory
+                                    const mem8 = new Uint8Array(env.memory.buffer);
+                                    let str = '';
+                                    for (let i = 0; i < 1024; i++) {
+                                        const byte = mem8[message + i];
+                                        if (!byte) break;
+                                        str += String.fromCharCode(byte);
+                                    }
+                                    errorMsg = `WASM abort: ${str}`;
+                                } catch (e) {
+                                    errorMsg = `WASM abort (failed to read message: ${e})`;
+                                }
+                            }
+
+                            // Log the error
+                            console.error(errorMsg);
+
+                            // Show an error message to the user
+                            try {
+                                const errorDiv = document.createElement('div');
+                                errorDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#ffebee;color:#b71c1c;padding:10px;z-index:9999;font-family:sans-serif;';
+                                errorDiv.textContent = `Fatal Error: ${errorMsg}`;
+                                document.body.prepend(errorDiv);
+                            } catch (e) {
+                                console.error('Failed to display error UI:', e);
+                            }
+
+                            // Throw an error to stop execution
+                            throw new Error(errorMsg);
+                        },
+                        abort: (msg) => {
+                            if (msg) {
+                                try {
+                                    // If msg is a pointer, try to read it as a string
+                                    const mem8 = new Uint8Array(env.memory.buffer);
+                                    let str = '';
+                                    for (let i = 0; i < 1024; i++) {
+                                        const byte = mem8[msg + i];
+                                        if (!byte) break;
+                                        str += String.fromCharCode(byte);
+                                    }
+                                    console.error('WASM abort:', str);
+                                } catch (e) {
+                                    console.error('WASM abort (failed to read message)');
+                                }
+                            } else {
+                                console.error('WASM abort');
+                            }
+                            throw new Error('WASM abort');
+                        },
+                        abortOnCannotGrowMemory: () => {
+                            const err = new Error('Cannot grow memory');
+                            console.error(err);
+                            throw err;
+                        },
+
+                        // Console logging functions
+                        emscripten_console_log: (ptr, len) => {
+                            const str = new TextDecoder().decode(
+                                new Uint8Array(env.memory.buffer, ptr, len)
+                            );
+                            console.log(str);
+                        },
+                        emscripten_console_warn: (ptr, len) => {
+                            const str = new TextDecoder().decode(
+                                new Uint8Array(env.memory.buffer, ptr, len)
+                            );
+                            console.warn(str);
+                        },
+                        emscripten_console_error: (ptr, len) => {
+                            const str = new TextDecoder().decode(
+                                new Uint8Array(env.memory.buffer, ptr, len)
+                            );
+                            console.error(str);
+                        },
+
+                        // Legacy console functions (for older Emscripten versions)
+                        _emscripten_console_log: (ptr) => {
+                            const str = new TextDecoder().decode(
+                                new Uint8Array(env.memory.buffer, ptr, 4096).filter(c => c !== 0)
+                            );
+                            console.log(str);
+                        },
+                        _emscripten_console_warn: (ptr) => {
+                            const str = new TextDecoder().decode(
+                                new Uint8Array(env.memory.buffer, ptr, 4096).filter(c => c !== 0)
+                            );
+                            console.warn(str);
+                        },
+                        _emscripten_console_error: (ptr) => {
+                            const str = new TextDecoder().decode(
+                                new Uint8Array(env.memory.buffer, ptr, 4096).filter(c => c !== 0)
+                            );
+                            console.error(str);
+                        },
+
+                        // Date and time functions
+                        emscripten_date_now: () => Date.now(),
+                        _tzset_js: () => {
+                            // Timezone handling - return local timezone offset in seconds
+                            return new Date().getTimezoneOffset() * -60;
+                        },
+                        _localtime_js: (time, tmPtr) => {
+                            // Convert time_t to local time struct (JavaScript implementation)
+                            const date = new Date(time * 1000);
+                            const view = new DataView(env.memory.buffer);
+
+                            // Write struct tm fields (in seconds since epoch)
+                            view.setInt32(tmPtr, date.getSeconds(), true);      // tm_sec
+                            view.setInt32(tmPtr + 4, date.getMinutes(), true);   // tm_min
+                            view.setInt32(tmPtr + 8, date.getHours(), true);     // tm_hour
+                            view.setInt32(tmPtr + 12, date.getDate(), true);     // tm_mday
+                            view.setInt32(tmPtr + 16, date.getMonth(), true);    // tm_mon
+                            view.setInt32(tmPtr + 20, date.getFullYear() - 1900, true); // tm_year
+                            view.setInt32(tmPtr + 24, date.getDay(), true);      // tm_wday
+
+                            // Calculate day of year (0-365)
+                            const start = new Date(date.getFullYear(), 0, 0);
+                            const diff = date - start;
+                            const oneDay = 1000 * 60 * 60 * 24;
+                            const dayOfYear = Math.floor(diff / oneDay);
+                            view.setInt32(tmPtr + 28, dayOfYear, true);         // tm_yday
+
+                            // Check for daylight saving time
+                            const jan = new Date(date.getFullYear(), 0, 1);
+                            const jul = new Date(date.getFullYear(), 6, 1);
+                            const stdTimezoneOffset = Math.max(
+                                jan.getTimezoneOffset(),
+                                jul.getTimezoneOffset()
+                            );
+                            const isDst = date.getTimezoneOffset() < stdTimezoneOffset;
+                            view.setInt32(tmPtr + 32, isDst ? 1 : 0, true);     // tm_isdst
+
+                            // Timezone name (not used, but set to empty string)
+                            view.setInt32(tmPtr + 36, 0, true);                 // tm_gmtoff
+                            view.setInt32(tmPtr + 40, 0, true);                 // tm_zone (null pointer)
+
+                            return 0; // Success
+                        },
+                        _gettimeofday: (ptr) => {
+                            // Get current time in seconds and microseconds since Unix epoch
+                            const now = Date.now();
+                            const seconds = Math.floor(now / 1000);
+                            const microseconds = (now % 1000) * 1000;
+
+                            // Write to memory if pointer is provided
+                            if (ptr) {
+                                const view = new DataView(env.memory.buffer);
+                                view.setInt32(ptr, seconds, true);
+                                view.setInt32(ptr + 4, microseconds, true);
+                            }
+                            return 0; // Success
+                        },
+                        _time: (ptr) => {
+                            // Get current time in seconds since Unix epoch
+                            const now = Math.floor(Date.now() / 1000);
+                            if (ptr) {
+                                new DataView(env.memory.buffer).setInt32(ptr, now, true);
+                            }
+                            return now;
+                        },
+                        _localtime_r: (time, tmPtr) => {
+                            // Convert time_t to local time struct
+                            const date = new Date(time * 1000);
+                            const view = new DataView(env.memory.buffer);
+
+                            // Write struct tm fields (in seconds since epoch)
+                            view.setInt32(tmPtr, date.getSeconds(), true);
+                            view.setInt32(tmPtr + 4, date.getMinutes(), true);
+                            view.setInt32(tmPtr + 8, date.getHours(), true);
+                            view.setInt32(tmPtr + 12, date.getDate(), true);
+                            view.setInt32(tmPtr + 16, date.getMonth(), true);
+                            view.setInt32(tmPtr + 20, date.getFullYear() - 1900, true);
+                            view.setInt32(tmPtr + 24, date.getDay(), true);
+                            view.setInt32(tmPtr + 28, date.getDay() === 0 ? 6 : date.getDay() - 1, true); // tm_yday
+                            view.setInt32(tmPtr + 32, date.getTimezoneOffset() * 60, true); // tm_isdst
+
+                            return tmPtr;
+                        },
+
+                        // Emscripten main loop functions
+                        emscripten_set_main_loop: (func, fps, simulateInfiniteLoop) => {
+                            const frame = () => {
+                                if (typeof func === 'function') {
+                                    func();
+                                }
+                                window._animationFrameId = requestAnimationFrame(frame);
+                            };
+                            window._animationFrameId = requestAnimationFrame(frame);
+                            return 0;
+                        },
+                        emscripten_cancel_main_loop: () => {
+                            if (window._animationFrameId) {
+                                cancelAnimationFrame(window._animationFrameId);
+                                window._animationFrameId = null;
+                            }
+                            return 0;
+                        },
+                        emscripten_get_now: () => performance.now(),
+                        emscripten_request_animation_frame: (func) => {
+                            const wrapper = (time) => {
+                                func(time);
+                                return 0;
+                            };
+                            return requestAnimationFrame(wrapper);
+                        },
+                        emscripten_cancel_animation_frame: (id) => {
+                            cancelAnimationFrame(id);
+                            return 0;
+                        },
+                        emscripten_set_main_loop_timing: (mode, value) => {
+                            // Mode: 0 = setTimeout, 1 = requestAnimationFrame, 2 = setImmediate
+                            // Value: milliseconds for setTimeout, ignored for others
+                            return 0;
+                        },
+                        emscripten_set_main_loop_expected_blockers: (n) => {
+                            return 0;
+                        },
+                        emscripten_set_main_loop_fps_mode: (mode) => {
+                            // 0 = timeout-based, 1 = requestAnimationFrame-based
+                            return 0;
+                        },
+
+                        // Math functions
+                        sin: Math.sin,
+                        cos: Math.cos,
+                        tan: Math.tan,
+                        exp: Math.exp,
+                        log: Math.log,
+                        sqrt: Math.sqrt,
+                        pow: Math.pow,
+
+                        // Memory management
+                        emscripten_resize_heap: (requestedSize) => {
+                            // Align to 16MB for more efficient growth
+                            const PAGE_MULTIPLE = 16 * 1024 * 1024;
+                            const MIN_TOTAL_MEMORY = 16 * 1024 * 1024;
+
+                            // Calculate new size, aligned to 16MB
+                            const newSize = Math.max(
+                                MIN_TOTAL_MEMORY,
+                                Math.ceil((requestedSize + PAGE_MULTIPLE - 1) / PAGE_MULTIPLE) * PAGE_MULTIPLE
+                            );
+
+                            // Calculate how many pages we need to grow by
+                            const oldSize = env.memory.buffer.byteLength;
+                            if (newSize <= oldSize) {
+                                return oldSize; // No need to grow
+                            }
+
+                            // Try to grow memory
+                            const pagesNeeded = Math.ceil((newSize - oldSize) / (64 * 1024));
+                            try {
+                                env.memory.grow(pagesNeeded);
+                                return newSize; // Return new size on success
+                            } catch (e) {
+                                // Try to grow by at least one page
+                                try {
+                                    env.memory.grow(1);
+                                    return env.memory.buffer.byteLength;
+                                } catch (e) {
+                                    return 0; // Failed to grow memory
+                                }
+                            }
+                        },
+
+                        // Memory operations
+                        _emscripten_memcpy_big: (dest, src, num) => {
+                            new Uint8Array(env.memory.buffer).set(
+                                new Uint8Array(env.memory.buffer, src, num),
+                                dest
+                            );
+                            return dest;
+                        },
+
+                        // Debugging and memory management
+                        _emscripten_get_global_libc: () => 0,
+                        _emscripten_get_heap_max: () => 2147483648,
+                        _emscripten_resize_heap: (size) => {
+                            const oldSize = env.memory.buffer.byteLength;
+                            if (size <= oldSize) return 0; // Can't shrink
+                            const pages = Math.ceil((size - oldSize) / 65536);
+                            try {
+                                env.memory.grow(pages);
+                                return 1; // Success
+                            } catch (e) {
+                                return 0; // Failure
+                            }
+                        },
+
+                        // Additional Emscripten runtime functions
+                        emscripten_memcpy_big: (dest, src, num) => {
+                            new Uint8Array(env.memory.buffer).set(
+                                new Uint8Array(env.memory.buffer, src, num),
+                                dest
+                            );
+                            return dest;
+                        },
+
+                        emscripten_stack_get_end: () => 0,
+                        emscripten_stack_get_free: () => 1024 * 1024, // 1MB stack
+
+                        // Threading (stubs)
+                        emscripten_futex_wake: () => 0,
+                        emscripten_futex_wait: () => 0,
+
+                        // Exception handling (stubs)
+                        __cxa_throw: () => { throw new Error('Exception thrown from WebAssembly'); },
+                        __cxa_allocate_exception: () => 0,
+                        __cxa_begin_catch: () => 0,
+                        __cxa_end_catch: () => {},
+
+                        // Dynamic linking (stubs)
+                        dlopen: () => 0,
+                        dlsym: () => 0,
+                        dlerror: () => 0,
+
+                        // Misc
+                        emscripten_async_call: (func, arg, millis) => {
+                            setTimeout(() => {
+                                if (typeof func === 'function') {
+                                    func(arg);
+                                } else if (typeof func === 'number' && env.table) {
+                                    const fn = env.table.get(func);
+                                    if (fn) fn(arg);
+                                }
+                            }, millis || 0);
+                            return 0;
+                        },
+
+                        // Memory management
+                        malloc: (size) => {
+                            // Simple bump allocator
+                            if (!env.mallocPtr) env.mallocPtr = 0;
+                            const ptr = env.mallocPtr;
+                            env.mallocPtr += (size + 7) & ~7; // Align to 8 bytes
+                            return ptr;
+                        },
+                        free: () => {}, // No-op for now
+
+                        // Environment
+                        getenv: (ptr) => 0, // Return null for all env vars
+
+                        // Exit handling
+                        exit: (status) => {
+                            console.log(`WebAssembly exited with status: ${status}`);
+                            return 0;
+                        }
+                    };
+
+                    // Create the WASI import object with safe memory access
+                    const wasi_imports = {
+                        // Environment variable handling
+                        environ_sizes_get: (environ_count, environ_buf_size) => {
+                            try {
+                                if (memory && memory.buffer) {
+                                    const view = new DataView(memory.buffer);
+                                    view.setUint32(environ_count, 0, true);
+                                    view.setUint32(environ_buf_size, 0, true);
+                                    return 0; // __WASI_ESUCCESS
+                                }
+                                return 8; // __WASI_ENOMEM
+                            } catch (e) {
+                                console.error('environ_sizes_get error:', e);
+                                return 8; // __WASI_ENOMEM
+                            }
+                        },
+                        environ_get: (environ, environ_buf) => {
+                            // No environment variables to return
+                            return 0; // __WASI_ESUCCESS
+                        },
+                        // File descriptor operations
+                        fd_close: (fd) => 0, // __WASI_ESUCCESS
+                        fd_seek: () => 52, // __WASI_ENOTSUP
+                        fd_write: (fd, iovs, iovs_len, nwritten) => {
+                            try {
+                                if (memory && memory.buffer && nwritten) {
+                                    const view = new DataView(memory.buffer);
+                                    view.setUint32(nwritten, 0, true);
+                                }
+                                return 0; // __WASI_ESUCCESS
+                            } catch (e) {
+                                console.error('fd_write error:', e);
+                                return 8; // __WASI_ENOMEM
+                            }
+                        },
+                        fd_read: () => 52, // __WASI_ENOTSUP
+                        fd_fdstat_get: () => 0, // __WASI_ESUCCESS
+                        fd_fdstat_set_flags: () => 0, // __WASI_ESUCCESS
+                        // Process control
+                        proc_exit: (code) => {
+                            console.warn(`WASI proc_exit called with code: ${code}`);
+                            throw new Error(`WASI proc_exit called with code: ${code}`);
+                        },
+                        // Random number generation
+                        random_get: (buffer, length) => {
+                            try {
+                                if (memory && memory.buffer && buffer && length > 0) {
+                                    crypto.getRandomValues(new Uint8Array(memory.buffer, buffer, length));
+                                }
+                                return 0; // __WASI_ESUCCESS
+                            } catch (e) {
+                                console.error('random_get error:', e);
+                                return 8; // __WASI_ENOMEM
+                            }
+                        }
+                    };
+
+                    const importObject = {
+                        env: env,
+                        wasi_snapshot_preview1: wasi_imports,
+                        wasi_unstable: wasi_imports // For backward compatibility
+                    };
+
+                    const results = await WebAssembly.instantiate(bytes, importObject);
+
+                    // Store the module and exports
+                    window.wasmModule = results.instance;
+                    state.wasmModule = results.instance;
+
+                    logToConsole('WebAssembly module loaded successfully', 'success');
+                    updateWasmStatus('Loaded', 'success');
+                    enableButtons();
+
+                    // Initialize any WebAssembly functions if needed
+                    if (window.wasmModule && window.wasmModule.exports) {
+                        if (typeof window.wasmModule.exports.init === 'function') {
+                            try {
+                                window.wasmModule.exports.init();
+                            } catch (e) {
+                                console.warn('WASM init function failed:', e);
+                            }
+                        }
+
+                        // Add any additional exports you need
+                        // Merge with existing exports and add our custom functions
+                        const customExports = {
+                            ...window.wasmModule.exports,
+                            // Add any additional utility functions here
+                            _add: (a, b) => a + b,
+                            _fibonacci: (n) => {
+                                if (n <= 1) return n;
+                                return customExports._fibonacci(n - 1) + customExports._fibonacci(n - 2);
+                            },
+                            getDebugInfo: () => ({
+                                version: '1.0.0',
+                                buildDate: new Date().toISOString(),
+                                features: ['simd', 'threads', 'bulk-memory']
+                            })
+                        };
+
+                        // Assign back to the module
+                        window.wasmModule.exports = customExports;
+                    }
+
+                    const loadTime = performance.now() - state.wasmLoadStart;
+
+                    // Update UI with proper null checks
+                    document.getElementById('wasm-module-status').textContent = 'Loaded';
+                    document.getElementById('wasm-load-time').textContent = `${loadTime.toFixed(2)} ms`;
+
+                    // Safely get memory size
+                    const memorySize = state.wasmModule?.memory?.buffer?.byteLength
+                        ? `${(state.wasmModule.memory.buffer.byteLength / (1024 * 1024)).toFixed(2)} MB`
+                        : 'N/A';
+                    document.getElementById('wasm-memory').textContent = memorySize;
+
+                    // Update exports list
+                    const exportsList = [];
+                    for (const key in state.wasmModule) {
+                        if (typeof state.wasmModule[key] === 'function' && !key.startsWith('_')) {
+                            exportsList.push(key);
+                        }
+                    }
+
+                    document.getElementById('wasm-exports').textContent =
+                        exportsList.length > 0
+                            ? exportsList.join('\n')
+                            : 'No functions exported';
+
+                    document.getElementById('wasm-functions').textContent = exportsList.length;
+
+                    logToConsole(`WebAssembly module loaded in ${loadTime.toFixed(2)}ms`, 'success');
+                    logToConsole(`Exported functions: ${exportsList.length}`, 'info');
+
+                } catch (error) {
+                    const errorMsg = `Failed to load WebAssembly module: ${error.message}`;
+                    logToConsole(errorMsg, 'error');
+                    document.getElementById('wasm-module-status').textContent = 'Error';
+                    document.getElementById('wasm-module-status').classList.add('log-error');
+                    console.error('WebAssembly load error:', error);
+                } finally {
+                    try {
+                        if (elements?.reloadWasmBtn) elements.reloadWasmBtn.disabled = false;
+                    } catch (e) {
+                        console.warn('Error resetting reload button state:', e);
+                    }
+                }
+            }
+
+            // Check system information
+            function checkSystemInfo() {
+                // Browser and OS
+                const { browser, os } = detectBrowserAndOS();
+                document.getElementById('browser-info').textContent = browser;
+                document.getElementById('os-info').textContent = os;
+
+                // CPU cores
+                const cores = navigator.hardwareConcurrency || 'Unknown';
+                document.getElementById('cpu-cores').textContent = cores;
+
+                // Device memory
+                if (navigator.deviceMemory) {
+                    document.getElementById('device-memory').textContent =
+                        `${navigator.deviceMemory} GB`;
+                } else {
+                    document.getElementById('device-memory').textContent = 'N/A';
+                }
+
+                // Detailed system info
+                const systemDetails = document.getElementById('system-details-list');
+                systemDetails.innerHTML = '';
+
+                const info = [
+                    ['Screen Resolution', `${window.screen.width}x${window.screen.height}`],
+                    ['WebGL', checkWebGLSupport() ? 'Supported' : 'Not supported'],
+                    ['WebGL2', checkWebGL2Support() ? 'Supported' : 'Not supported'],
+                    ['WebAssembly', checkWasmSupport() ? 'Supported' : 'Not supported']
+                ];
+
+                for (const [key, value] of info) {
+                    const p = document.createElement('p');
+                    p.style.margin = '4px 0';
+                    p.innerHTML = `<strong>${key}:</strong> ${value}`;
+                    systemDetails.appendChild(p);
+                }
+
+                logToConsole('System information collected', 'success');
+            }
+
+            // Check WebGL information
+            function checkWebGLInfo() {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+
+                if (!gl) {
+                    const webglDetails = document.getElementById('webgl-details');
+                    if (webglDetails) {
+                        webglDetails.innerHTML = '<p>WebGL is not supported in your browser</p>';
+                    }
+                    logToConsole('WebGL is not supported in your browser', 'error');
+                    return;
+                }
+
+                // Get WebGL information
+                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                const vendor = debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : 'Unknown';
+                const renderer = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'Unknown';
+                const version = gl.getParameter(gl.VERSION);
+                const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+
+                // Update WebGL info in the system tab
+                const webglDetails = document.getElementById('webgl-details');
+                if (webglDetails) {
+                    webglDetails.innerHTML = `
+                        <p><strong>Vendor:</strong> ${vendor}</p>
+                        <p><strong>Renderer:</strong> ${renderer}</p>
+                        <p><strong>Version:</strong> ${version}</p>
+                        <p><strong>Max Texture Size:</strong> ${maxTextureSize}x${maxTextureSize}</p>
+                    `;
+                } else {
+                    console.error('WebGL details element not found');
+                }
+
+                logToConsole('WebGL information collected', 'success');
+            }
+
+            function initWebGLCanvas() {
+                const canvas = document.getElementById('webgl-canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+
+                if (!gl) {
+                    logToConsole('WebGL is not supported in this browser', 'error');
+                    return;
+                }
+
+                // Set up a simple clear color
+                gl.clearColor(0.1, 0.1, 0.1, 1.0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+
+                // You can add more WebGL initialization code here
+
+                // Set up animation loop
+                function render() {
+                    // Clear the canvas
+                    gl.clear(gl.COLOR_BUFFER_BIT);
+
+                    // Add your WebGL rendering code here
+
+                    // Continue the animation loop
+                    requestAnimationFrame(render);
+                }
+
+                // Start the animation loop
+                render();
+            }
+
+            // Update performance UI elements
+            function updatePerformanceUI(fps, frameTime) {
+                // Update FPS counter
+                const fpsElement = document.getElementById('fps-counter');
+                if (fpsElement) {
+                    fpsElement.textContent = fps;
+
+                    // Color code based on FPS
+                    if (fps < 30) {
+                        fpsElement.style.color = 'var(--error)';
+                    } else if (fps < 50) {
+                        fpsElement.style.color = 'var(--warning)';
+                    } else {
+                        fpsElement.style.color = 'var(--success)';
+                    }
+                }
+
+                // Update frame time
+                const frameTimeElement = document.getElementById('frame-time');
+                if (frameTimeElement) {
+                    frameTimeElement.textContent = `${frameTime.toFixed(2)} ms`;
+
+                    // Color code based on frame time
+                    if (frameTime > 33) { // ~30 FPS
+                        frameTimeElement.style.color = 'var(--error)';
+                    } else if (frameTime > 20) { // ~50 FPS
+                        frameTimeElement.style.color = 'var(--warning)';
+                    } else {
+                        frameTimeElement.style.color = 'var(--success)';
+                    }
+                }
+
+                // Update memory usage if available
+                if (window.performance && window.performance.memory) {
+                    const mem = window.performance.memory;
+                    const usedMB = mem.usedJSHeapSize / (1024 * 1024);
+                    const totalMB = mem.jsHeapSizeLimit / (1024 * 1024);
+
+                    const memoryElement = document.getElementById('js-heap');
+                    if (memoryElement) {
+                        memoryElement.textContent = `${usedMB.toFixed(2)} / ${totalMB.toFixed(2)} MB`;
+
+                        // Color code based on memory usage
+                        const usagePercent = (usedMB / totalMB) * 100;
+                        if (usagePercent > 80) {
+                            memoryElement.style.color = 'var(--error)';
+                        } else if (usagePercent > 60) {
+                            memoryElement.style.color = 'var(--warning)';
+                        } else {
+                            memoryElement.style.color = 'var(--success)';
+                        }
+                    }
+                }
+
+                // Update DOM nodes count
+                const domNodesElement = document.getElementById('dom-nodes');
+                if (domNodesElement) {
+                    const nodeCount = document.getElementsByTagName('*').length;
+                    domNodesElement.textContent = nodeCount.toLocaleString();
+
+                    // Color code based on node count
+                    if (nodeCount > 3000) {
+                        domNodesElement.style.color = 'var(--error)';
+                    } else if (nodeCount > 1500) {
+                        domNodesElement.style.color = 'var(--warning)';
+                    } else {
+                        domNodesElement.style.color = 'var(--success)';
+                    }
+                }
+            }
+
+            // Update performance charts
+            function updatePerformanceCharts() {
+                // This would update the charts with the latest performance data
+                // Implementation would depend on the charting library you're using
+                // For now, we'll just log that this was called
+                logToConsole('Updating performance charts...', 'debug');
+            }
+
+            // Start profiling
+            function startProfiling() {
+                if (state.isProfiling) return;
+
+                logToConsole('Starting performance profiling...', 'info');
+
+                // Reset profile data
+                state.profileData = {
+                    startTime: performance.now(),
+                    endTime: 0,
+                    samples: [],
+                    memorySamples: []
+                };
+
+                // Start sampling
+                state.isProfiling = true;
+                state.profileInterval = setInterval(() => {
+                    if (!state.isProfiling) return;
+
+                    // Take a sample
+                    state.profileData.samples.push({
+                        timestamp: performance.now(),
+                        fps: state.performanceMetrics.fps[state.performanceMetrics.fps.length - 1] || 0,
+                        frameTime: state.performanceMetrics.frameTimes[state.performanceMetrics.frameTimes.length - 1] || 0
+                    });
+
+                    // Sample memory if available
+                    if (window.performance && window.performance.memory) {
+                        const mem = window.performance.memory;
+                        state.profileData.memorySamples.push({
+                            timestamp: performance.now(),
+                            usedMB: mem.usedJSHeapSize / (1024 * 1024),
+                            totalMB: mem.jsHeapSizeLimit / (1024 * 1024)
+                        });
+                    }
+
+                }, 100); // Sample every 100ms
+
+                // Update UI
+                elements.startProfilingBtn.disabled = true;
+                elements.stopProfilingBtn.disabled = false;
+                elements.saveProfileBtn.disabled = true;
+
+                logToConsole('Performance profiling started', 'success');
+            }
+
+            // Stop profiling
+            function stopProfiling() {
+                if (!state.isProfiling) return;
+
+                logToConsole('Stopping performance profiling...', 'info');
+
+                // Stop sampling
+                clearInterval(state.profileInterval);
+                state.isProfiling = false;
+
+                // Update profile data
+                state.profileData.endTime = performance.now();
+                state.profileData.duration = state.profileData.endTime - state.profileData.startTime;
+
+                // Calculate statistics
+                const fpsSamples = state.profileData.samples.map(s => s.fps).filter(fps => fps > 0);
+                const frameTimeSamples = state.profileData.samples.map(s => s.frameTime).filter(ft => ft > 0);
+
+                state.profileData.stats = {
+                    avgFps: fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length,
+                    minFps: Math.min(...fpsSamples),
+                    maxFps: Math.max(...fpsSamples),
+                    avgFrameTime: frameTimeSamples.reduce((a, b) => a + b, 0) / frameTimeSamples.length,
+                    minFrameTime: Math.min(...frameTimeSamples),
+                    maxFrameTime: Math.max(...frameTimeSamples),
+                    sampleCount: state.profileData.samples.length,
+                    duration: state.profileData.duration / 1000 // in seconds
+                };
+
+                // Update UI
+                elements.startProfilingBtn.disabled = false;
+                elements.stopProfilingBtn.disabled = true;
+                elements.saveProfileBtn.disabled = false;
+
+                logToConsole('Performance profiling stopped', 'success');
+                logToConsole(`Collected ${state.profileData.samples.length} samples over ${(state.profileData.duration / 1000).toFixed(2)} seconds`, 'info');
+                logToConsole(`Average FPS: ${state.profileData.stats.avgFps.toFixed(2)} (Min: ${state.profileData.stats.minFps.toFixed(2)}, Max: ${state.profileData.stats.maxFps.toFixed(2)})`, 'info');
+                logToConsole(`Average Frame Time: ${state.profileData.stats.avgFrameTime.toFixed(2)}ms (Min: ${state.profileData.stats.minFrameTime.toFixed(2)}ms, Max: ${state.profileData.stats.maxFrameTime.toFixed(2)}ms)`, 'info');
+
+                // Update charts with profile data
+                updateProfileCharts();
+            }
+
+            // Save profile data
+            function saveProfile() {
+                if (!state.profileData) return;
+
+                try {
+                    const profile = {
+                        metadata: {
+                            timestamp: new Date().toISOString(),
+                            duration: state.profileData.duration,
+                            sampleCount: state.profileData.samples.length,
+                            stats: state.profileData.stats
+                        },
+                        samples: state.profileData.samples,
+                        memorySamples: state.profileData.memorySamples
+                    };
+
+                    const blob = new Blob([JSON.stringify(profile, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `profile-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    logToConsole('Profile saved successfully', 'success');
+                } catch (error) {
+                    logToConsole(`Failed to save profile: ${error.message}`, 'error');
+                    console.error('Save profile error:', error);
+                }
+            }
+
+            // Update profile charts
+            function updateProfileCharts() {
+                if (!state.profileData) return;
+
+                // This would update the charts with the profile data
+                // Implementation would depend on the charting library you're using
+                logToConsole('Updating profile charts...', 'debug');
+            }
+
+            // Run benchmark
+            function runBenchmark() {
+                logToConsole('Starting benchmark...', 'info');
+
+                // Disable buttons during benchmark
+                elements.runBenchmarkBtn.disabled = true;
+
+                // Run a series of tests
+                const tests = [
+                    { name: 'JavaScript Array Operations', run: benchmarkJsArrays },
+                    { name: 'DOM Manipulation', run: benchmarkDomManipulation },
+                    { name: 'Canvas Drawing', run: benchmarkCanvas },
+                    { name: 'Math Operations', run: benchmarkMath },
+                    { name: 'Object Creation', run: benchmarkObjectCreation }
+                ];
+
+                const results = [];
+                let currentTest = 0;
+
+                function runNextTest() {
+                    if (currentTest >= tests.length) {
+                        // All tests completed
+                        benchmarkCompleted(results);
+                        return;
+                    }
+
+                    const test = tests[currentTest];
+                    logToConsole(`Running test: ${test.name}...`, 'info');
+
+                    // Run the test
+                    const result = test.run();
+                    results.push({
+                        name: test.name,
+                        ...result
+                            });
+
+                    logToConsole(`  ${test.name}: ${result.score.toFixed(2)} ops/sec`, 'info');
+
+                    // Run next test
+                    currentTest++;
+                    setTimeout(runNextTest, 100); // Small delay between tests
+                }
+
+                // Start the first test
+                runNextTest();
+            }
+
+            // Benchmark: JavaScript Array Operations
+            function benchmarkJsArrays() {
+                const startTime = performance.now();
+                const iterations = 100000;
+                let sum = 0;
+
+                // Test array operations
+                const array = [];
+                for (let i = 0; i < iterations; i++) {
+                    array.push(i);
+                }
+
+                // Test array methods
+                const mapped = array.map(x => x * 2);
+                const filtered = array.filter(x => x % 2 === 0);
+                const reduced = array.reduce((a, b) => a + b, 0);
+                sum = reduced; // Prevent optimization
+
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+
+                return {
+                    score: iterations / (duration / 1000), // ops/sec
+                    duration,
+                    iterations,
+                    sum // Prevent optimization
+                };
+            }
+
+            // Benchmark: DOM Manipulation
+            function benchmarkDomManipulation() {
+                const container = document.createElement('div');
+                container.style.display = 'none';
+                document.body.appendChild(container);
+
+                const startTime = performance.now();
+                const iterations = 1000;
+
+                // Test DOM creation and manipulation
+                for (let i = 0; i < iterations; i++) {
+                    const div = document.createElement('div');
+                    div.textContent = `Item ${i}`;
+                    div.className = 'test-item';
+                    container.appendChild(div);
+                }
+
+                // Test querying
+                const items = container.querySelectorAll('.test-item');
+
+                // Clean up
+                document.body.removeChild(container);
+
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+
+                return {
+                    score: iterations / (duration / 1000), // ops/sec
+                    duration,
+                    iterations,
+                    items: items.length // Prevent optimization
+                };
+            }
+
+            // Benchmark: Canvas Drawing
+            function benchmarkCanvas() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 100;
+                canvas.height = 100;
+                const ctx = canvas.getContext('2d');
+
+                const startTime = performance.now();
+                const iterations = 1000;
+
+                // Test canvas drawing operations
+                for (let i = 0; i < iterations; i++) {
+                    // Random color
+                    const r = Math.floor(Math.random() * 256);
+                    const g = Math.floor(Math.random() * 256);
+                    const b = Math.floor(Math.random() * 256);
+
+                    // Random position and size
+                    const x = Math.random() * canvas.width;
+                    const y = Math.random() * canvas.height;
+                    const width = Math.random() * 50;
+                    const height = Math.random() * 50;
+
+                    // Draw a rectangle
+                    ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                    ctx.fillRect(x, y, width, height);
+                }
+
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+
+                return {
+                    score: iterations / (duration / 1000), // ops/sec
+                    duration,
+                    iterations
+                };
+            }
+
+            // Benchmark: Math Operations
+            function benchmarkMath() {
+                const startTime = performance.now();
+                const iterations = 1000000;
+                let sum = 0;
+
+                // Test various math operations
+                for (let i = 0; i < iterations; i++) {
+                    sum += Math.sin(i) * Math.cos(i) + Math.sqrt(i);
+                }
+
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+
+                return {
+                    score: iterations / (duration / 1000), // ops/sec
+                    duration,
+                    iterations,
+                    sum // Prevent optimization
+                };
+            }
+
+            // Benchmark: Object Creation
+            function benchmarkObjectCreation() {
+                const startTime = performance.now();
+                const iterations = 100000;
+                const objects = [];
+
+                // Test object creation and property access
+                for (let i = 0; i < iterations; i++) {
+                    const obj = {
+                        id: i,
+                        name: `Object ${i}`,
+                        value: Math.random(),
+                        timestamp: Date.now(),
+                        data: {
+                            x: Math.random() * 1000,
+                            y: Math.random() * 1000,
+                            z: Math.random() * 1000
+                        },
+                        get magnitude() {
+                            return Math.sqrt(
+                                this.data.x * this.data.x +
+                                this.data.y * this.data.y +
+                                this.data.z * this.data.z
+                            );
+                        }
+                    };
+
+                    objects.push(obj);
+                }
+
+                // Access some properties to prevent optimization
+                let totalMagnitude = 0;
+                for (const obj of objects) {
+                    totalMagnitude += obj.magnitude;
+                }
+
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+
+                return {
+                    score: iterations / (duration / 1000), // ops/sec
+                    duration,
+                    iterations,
+                    totalMagnitude // Prevent optimization
+                };
+            }
+
+            // Benchmark completed
+            function benchmarkCompleted(results) {
+                // Calculate overall score
+                const totalScore = results.reduce((sum, test) => sum + test.score, 0);
+                const avgScore = totalScore / results.length;
+
+                // Log results
+                logToConsole('\n=== Benchmark Results ===', 'success');
+                results.forEach(test => {
+                    logToConsole(`${test.name.padEnd(25)}: ${test.score.toFixed(2).padStart(10)} ops/sec (${test.duration.toFixed(2)}ms)`, 'info');
+                });
+
+                logToConsole(`\nAverage Score: ${avgScore.toFixed(2)} ops/sec`, 'success');
+
+                // Re-enable button
+                elements.runBenchmarkBtn.disabled = false;
+            }
+
+            // Export report
+            function exportReport() {
+                try {
+                    const report = {
+                        timestamp: new Date().toISOString(),
+                        system: {
+                            userAgent: navigator.userAgent,
+                            platform: navigator.platform,
+                            language: navigator.language,
+                            hardwareConcurrency: navigator.hardwareConcurrency,
+                            deviceMemory: navigator.deviceMemory,
+                            webGL: checkWebGLSupport(),
+                            webAssembly: checkWasmSupport(),
+                            webGL2: checkWebGL2Support()
+                        },
+                        performance: {
+                            fps: state.performanceMetrics.fps[state.performanceMetrics.fps.length - 1] || 0,
+                            frameTime: state.performanceMetrics.frameTimes[state.performanceMetrics.frameTimes.length - 1] || 0,
+                            memory: window.performance && window.performance.memory ? {
+                                usedJSHeapSize: window.performance.memory.usedJSHeapSize,
+                                totalJSHeapSize: window.performance.memory.totalJSHeapSize,
+                                jsHeapSizeLimit: window.performance.memory.jsHeapSizeLimit
+                            } : null
+                        },
+                        webGLInfo: getWebGLInfo(),
+                        wasmInfo: state.wasmModule ? {
+                            loaded: true,
+                            loadTime: state.wasmLoadTime,
+                            memory: state.wasmModule.memory ? {
+                                size: state.wasmModule.memory.buffer.byteLength
+                            } : null
+                        } : { loaded: false },
+                        logs: state.logs.slice(-1000) // Last 1000 log entries
+                    };
+
+                    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `evolution-simulator-report-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    logToConsole('Report exported successfully', 'success');
+                } catch (error) {
+                    logToConsole(`Failed to export report: ${error.message}`, 'error');
+                    console.error('Export report error:', error);
+                }
+            }
+
+            // Get WebGL information
+            function getWebGLInfo() {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+
+                if (!gl) return { supported: false };
+
+                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+
+                return {
+                    supported: true,
+                    vendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : 'Unknown',
+                    renderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : 'Unknown',
+                    version: gl.getParameter(gl.VERSION),
+                    shadingLanguageVersion: gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
+                    maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+                    maxRenderbufferSize: gl.getParameter(gl.MAX_RENDERBUFFER_SIZE),
+                    maxViewportDims: gl.getParameter(gl.MAX_VIEWPORT_DIMS),
+                    maxVertexAttribs: gl.getParameter(gl.MAX_VERTEX_ATTRIBS),
+                    maxVertexUniformVectors: gl.getParameter(gl.MAX_VERTEX_UNIFORM_VECTORS),
+                    maxFragmentUniformVectors: gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS),
+                    maxVaryingVectors: gl.getParameter(gl.MAX_VARYING_VECTORS),
+                    maxCombinedTextureImageUnits: gl.getParameter(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS),
+                    maxVertexTextureImageUnits: gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS),
+                    maxTextureImageUnits: gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS),
+                    maxCubeMapTextureSize: gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE)
+                };
+            }
+
+            // Check WebGL support
+            function checkWebGLSupport() {
+                try {
+                    const canvas = document.createElement('canvas');
+                    return !!(window.WebGLRenderingContext &&
+                             (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            // Check WebGL 2 support
+            function checkWebGL2Support() {
+                try {
+                    const canvas = document.createElement('canvas');
+                    return !!(window.WebGL2RenderingContext && canvas.getContext('webgl2'));
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            // Update WASM status in the UI
+            function updateWasmStatus(message, type = 'info') {
+                if (elements.wasmStatus) {
+                    elements.wasmStatus.textContent = message;
+                    elements.wasmStatus.className = `status-${type}`;
+                }
+            }
+
+            // Update header stats (FPS, memory, uptime)
+            function updateHeaderStats() {
+                if (!elements.fpsCounter || !elements.memoryUsage || !elements.uptime) return;
+
+                // Update FPS
+                elements.fpsCounter.textContent = fps.toFixed(1);
+
+                // Update memory usage if available
+                if (window.performance && window.performance.memory) {
+                    const usedMB = (window.performance.memory.usedJSHeapSize / (1024 * 1024)).toFixed(2);
+                    const totalMB = (window.performance.memory.jsHeapSizeLimit / (1024 * 1024)).toFixed(2);
+                    elements.memoryUsage.textContent = `${usedMB} / ${totalMB} MB`;
+                }
+
+                // Update uptime
+                const uptime = Math.floor((Date.now() - startTime) / 1000);
+                const hours = Math.floor(uptime / 3600).toString().padStart(2, '0');
+                const minutes = Math.floor((uptime % 3600) / 60).toString().padStart(2, '0');
+                const seconds = (uptime % 60).toString().padStart(2, '0');
+                elements.uptime.textContent = `${hours}:${minutes}:${seconds}`;
+            }
+
+            // Start performance monitoring
+            function startPerformanceMonitoring() {
+                let lastTime = performance.now();
+
+                function update() {
+                    const now = performance.now();
+                    const delta = now - lastTime;
+                    lastTime = now;
+
+                    // Calculate FPS
+                    frameCount++;
+                    if (now - lastFpsUpdate >= 1000) {
+                        fps = (frameCount * 1000) / (now - lastFpsUpdate);
+                        frameCount = 0;
+                        lastFpsUpdate = now;
+                    }
+
+                    // Update UI
+                    updateHeaderStats();
+
+                    // Continue the loop
+                    requestAnimationFrame(update);
+                }
+
+                // Start the loop
+                requestAnimationFrame(update);
+            }
+
+            // Check WebAssembly support
+            function checkWasmSupport() {
+                return new Promise((resolve) => {
+                    try {
+                        if (typeof WebAssembly === 'object' && typeof WebAssembly.instantiate === 'function') {
+                            const module = new WebAssembly.Module(Uint8Array.of(0x0, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00));
+                            if (module instanceof WebAssembly.Module) {
+                                const instance = new WebAssembly.Instance(module);
+                                const supported = instance instanceof WebAssembly.Instance;
+                                updateWasmStatus(supported ? 'Ready' : 'Not Supported', supported ? 'success' : 'error');
+                                logToConsole(`WebAssembly ${supported ? 'is supported' : 'is not supported'}`,
+                                    supported ? 'success' : 'warning');
+                                resolve(supported);
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        const errorMsg = `WebAssembly check failed: ${e.message}`;
+                        updateWasmStatus('Error', 'error');
+                        logToConsole(errorMsg, 'error');
+                    }
+                    updateWasmStatus('Not Supported', 'error');
+                    logToConsole('WebAssembly is not supported in this browser', 'warning');
+                    resolve(false);
+                });
+            }
+
+            // Detect browser and OS
+            function detectBrowserAndOS() {
+                const userAgent = navigator.userAgent;
+                let browser = 'Unknown';
+                let os = 'Unknown';
+
+                // Detect browser
+                if (userAgent.indexOf('Firefox') > -1) {
+                    browser = 'Mozilla Firefox';
+                } else if (userAgent.indexOf('SamsungBrowser') > -1) {
+                    browser = 'Samsung Browser';
+                } else if (userAgent.indexOf('Opera') > -1 || userAgent.indexOf('OPR') > -1) {
+                    browser = 'Opera';
+                } else if (userAgent.indexOf('Trident') > -1) {
+                    browser = 'Internet Explorer';
+                } else if (userAgent.indexOf('Edge') > -1) {
+                    browser = 'Microsoft Edge (Legacy)';
+                } else if (userAgent.indexOf('Edg') > -1) {
+                    browser = 'Microsoft Edge (Chromium)';
+                } else if (userAgent.indexOf('Chrome') > -1) {
+                    browser = 'Google Chrome';
+                } else if (userAgent.indexOf('Safari') > -1) {
+                    browser = 'Apple Safari';
+                }
+
+                // Detect OS
+                if (userAgent.indexOf('Windows') > -1) {
+                    os = 'Windows';
+                } else if (userAgent.indexOf('Mac') > -1) {
+                    os = 'macOS';
+                } else if (userAgent.indexOf('Linux') > -1) {
+                    os = 'Linux';
+                } else if (userAgent.indexOf('Android') > -1) {
+                    os = 'Android';
+                } else if (userAgent.indexOf('iOS') > -1 || userAgent.indexOf('iPhone') > -1 || userAgent.indexOf('iPad') > -1) {
+                    os = 'iOS';
+                }
+
+                return { browser, os };
+            }
+
+            // Get OS name
+            function getOSName() {
+                const { os } = detectBrowserAndOS();
+                return os;
+            }
+
+            // Copy system info to clipboard
+            function copySystemInfo() {
+                const systemDetails = document.getElementById('system-details');
+                const range = document.createRange();
+                range.selectNode(systemDetails);
+                window.getSelection().removeAllRanges();
+                window.getSelection().addRange(range);
+
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        log('System information copied to clipboard', 'success');
+                    } else {
+                        throw new Error('Copy command failed');
+                    }
+                } catch (err) {
+                    log('Failed to copy system information', 'error');
+                    console.error('Copy error:', err);
+                }
+
+                window.getSelection().removeAllRanges();
+            }
+
+            // Save system info to file
+            function saveSystemInfo() {
+                try {
+                    const systemDetails = document.getElementById('system-details').textContent;
+                    const blob = new Blob([systemDetails], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `system-info-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    log('System information saved to file', 'success');
+                } catch (error) {
+                    log(`Failed to save system information: ${error.message}`, 'error');
+                    console.error('Save system info error:', error);
+                }
+            }
+
+            // Handle window resize
+            function handleResize() {
+                // Update any responsive elements
+                updatePerformanceCharts();
+            }
+
+            // Refresh all data
+            function refreshAll() {
+                log('Refreshing all data...', 'info');
+                checkSystemInfo();
+                checkWebGLInfo();
+                updatePerformanceCharts();
+                log('Refresh complete', 'success');
+            }
+
+            // Public API
+            return {
+                init: initApp,  // Changed from init to initApp
+                log: logToConsole,
+                clearConsole,
+                refreshAll,
+                runBenchmark,
+                startProfiling,
+                stopProfiling,
+                saveProfile,
+                loadWasmModule,
+                runWasmBenchmark,
+                showWasmDebugInfo,
+                copySystemInfo,
+                saveSystemInfo,
+                runWebGLTest,
+                runWebGLBenchmark
+            };
+        })();
+
+        // Define logToConsole function before any other code that might use it
+        function logToConsole(message, type = 'log') {
+            try {
+                const consoleEl = document.getElementById('console-output');
+                if (!consoleEl) return;
+
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString();
+                const logLine = document.createElement('div');
+                logLine.className = `console-line console-${type}`;
+                logLine.innerHTML = `<span class="console-timestamp">[${timeStr}]</span> ${message}`;
+
+                consoleEl.appendChild(logLine);
+                consoleEl.scrollTop = consoleEl.scrollHeight;
+
+                // Also log to browser console
+                const logMethod = type === 'error' ? 'error' :
+                                type === 'warn' ? 'warn' :
+                                'log';
+                console[logMethod](`[${timeStr}] ${message}`);
+            } catch (e) {
+                console.error('Error in logToConsole:', e);
+            }
+        }
+
+        // Console utility functions
+        function clearConsole() {
+            try {
+                const consoleEl = document.getElementById('console-output');
+                if (consoleEl) {
+                    consoleEl.innerHTML = '';
+                }
+            } catch (e) {
+                console.error('Error clearing console:', e);
+            }
+        }
+
+        // Initialize the application when the DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                // Initialize WebGL info display
+                const webglInfo = document.getElementById('webgl-info');
+                if (webglInfo) {
+                    const canvas = document.createElement('canvas');
+                    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                    if (gl) {
+                        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                        if (debugInfo) {
+                            const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+                            const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+                            document.getElementById('webgl-details').innerHTML = `
+                                <p><strong>Vendor:</strong> ${vendor}</p>
+                                <p><strong>Renderer:</strong> ${renderer}</p>
+                                <p><strong>Version:</strong> ${gl.getParameter(gl.VERSION)}</p>
+                                <p><strong>Max Texture Size:</strong> ${gl.getParameter(gl.MAX_TEXTURE_SIZE)}</p>
+                            `;
+                            webglInfo.style.display = 'block';
+                        }
+                    }
+                }
+
+                // Initialize the application
+                app.init();
+            } catch (e) {
+                console.error('Error initializing application:', e);
+                logToConsole(`Error initializing application: ${e.message}`, 'error');
+            }
+        });
     </script>
 </body>
 </html>

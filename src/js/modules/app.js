@@ -677,8 +677,15 @@ class App {
         try {
             logger.log('Quitting to main menu...');
             
-            // Reset the simulation
-            await this.resetSimulation();
+            // Stop any running simulation
+            if (this.currentMainLoop) {
+                window.cancelAnimationFrame(this.currentMainLoop);
+                this.currentMainLoop = null;
+            }
+            
+            // Reset game state
+            this.isRunning = false;
+            this.isPaused = false;
             
             // Show main menu and hide game container using uiManager
             this.uiManager.showMainMenu();
