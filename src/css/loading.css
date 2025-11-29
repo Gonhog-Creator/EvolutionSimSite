@@ -1,0 +1,40 @@
+/* Loading Screen Styles */
+.loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-family: Arial, sans-serif;
+    z-index: 1000;
+}
+
+.loading-screen.error {
+    color: #ff6b6b;
+}
+
+.loading-screen .error-container {
+    text-align: center;
+    max-width: 600px;
+    padding: 20px;
+}
+
+.loading-screen .reload-button {
+    margin-top: 20px;
+    padding: 10px 20px;
+    background: #ff6b6b;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.loading-screen .reload-button:hover {
+    background: #e64a4a;
+}

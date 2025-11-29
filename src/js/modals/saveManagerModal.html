@@ -1,0 +1,192 @@
+<div id="save-manager-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Save Manager</h2>
+            <span class="close-btn">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="save-actions">
+                <button id="new-save-btn" class="btn btn-primary">
+                    <i class="icon-save"></i> New Save
+                </button>
+                <button id="import-save-btn" class="btn btn-secondary">
+                    <i class="icon-upload"></i> Import Save
+                </button>
+                <input type="file" id="import-file-input" accept=".json" style="display: none;">
+            </div>
+            
+            <div class="saves-list" id="saves-list">
+                <!-- Saves will be listed here -->
+                <div class="no-saves">No saved games found</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background-color: #2d2d2d;
+    border-radius: 8px;
+    width: 80%;
+    max-width: 800px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid #444;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #fff;
+}
+
+.close-btn {
+    font-size: 1.8rem;
+    cursor: pointer;
+    color: #aaa;
+}
+
+.close-btn:hover {
+    color: #fff;
+}
+
+.modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.save-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.saves-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.save-item {
+    background-color: #3a3a3a;
+    border-radius: 6px;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+
+.save-item:hover {
+    background-color: #444;
+}
+
+.save-info {
+    flex: 1;
+}
+
+.save-name {
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 5px;
+}
+
+.save-date {
+    font-size: 0.9rem;
+    color: #aaa;
+}
+
+.save-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.no-saves {
+    text-align: center;
+    padding: 20px;
+    color: #888;
+    font-style: italic;
+}
+
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background-color: #4a90e2;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #3a7bc8;
+}
+
+.btn-danger {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #c0392b;
+}
+
+.btn-secondary {
+    background-color: #555;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #666;
+}
+
+.btn-sm {
+    padding: 4px 8px;
+    font-size: 0.9rem;
+}
+
+/* Rename input */
+.rename-input {
+    background: transparent;
+    border: 1px solid #555;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    width: 200px;
+    margin-right: 8px;
+}
+
+.rename-input:focus {
+    outline: none;
+    border-color: #4a90e2;
+}
+</style>

@@ -19,6 +19,7 @@
                 <div class="menu-buttons">
                     <button id="resume-btn" class="menu-button">RESUME</button>
                     <button id="save-game-btn" class="menu-button">SAVE GAME</button>
+                    <button id="save-quit-btn" class="menu-button">SAVE & QUIT</button>
                     <button id="settings-menu-btn" class="menu-button">SETTINGS</button>
                     <button id="quit-to-menu-btn" class="menu-button">QUIT TO MENU</button>
                 </div>
@@ -39,6 +40,27 @@
         </div>
     </div>
 
+    <!-- New Game Modal -->
+    <div id="new-game-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>New Game</h2>
+                <button class="close-btn" id="close-new-game">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="save-name">Save Name</label>
+                    <input type="text" id="save-name" class="form-control" placeholder="Enter a name for your game" maxlength="50">
+                    <div class="form-hint">Maximum 50 characters</div>
+                </div>
+                <div class="form-actions">
+                    <button id="cancel-new-game" class="btn btn-secondary">Cancel</button>
+                    <button id="confirm-new-game" class="btn btn-primary">Create Game</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Save Manager Modal -->
     <div id="save-manager-modal" class="modal hidden">
         <div class="modal-content">
@@ -48,6 +70,23 @@
             </div>
             <div class="saves-list" id="saves-list">
                 <div class="no-saves">No saved games found</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Confirm Deletion</h2>
+                <button class="close-btn" id="close-confirmation">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmation-message">Are you sure you want to delete this save?</p>
+                <div class="form-actions">
+                    <button id="cancel-delete" class="btn btn-secondary">Cancel</button>
+                    <button id="confirm-delete" class="btn btn-danger">Delete</button>
+                </div>
             </div>
         </div>
     </div>
@@ -183,19 +222,23 @@
     
     <!-- Main application script -->
     <script>
-// Create the WebAssembly module instance
-window.createEmscriptenModule().then(Module => {
-    console.log('WebAssembly module initialized');
-    window.Module = Module;
+// The WebAssembly module will be initialized by the Emscripten-generated code
+// and will call the Module.onRuntimeInitialized callback when ready
+
+// Listen for the wasm-ready event that will be dispatched by the Module.onRuntimeInitialized
+window.addEventListener('wasm-ready', function() {
+    console.log('WebAssembly module is ready');
     window.wasmReady = true;
     
-    // Dispatch an event that the WASM module is ready
-    const event = new Event('wasm-ready');
-    window.dispatchEvent(event);
-}).catch(error => {
-    console.error('Failed to initialize WebAssembly module:', error);
-    const event = new CustomEvent('wasm-error', { detail: error });
-    window.dispatchEvent(event);
+    // If there's an app that's waiting for WASM to be ready, notify it
+    if (window.app && typeof window.app.onWasmReady === 'function') {
+        window.app.onWasmReady();
+    }
+});
+
+// Handle any WebAssembly loading errors
+window.addEventListener('wasm-error', function(event) {
+    console.error('WebAssembly error:', event.detail);
 });
 
 // Function to load the WebAssembly script as a module

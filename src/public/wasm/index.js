@@ -90,7 +90,7 @@ var quit_ = (status, toThrow) => {
   throw toThrow;
 };
 
-var _scriptName = import.meta.url;
+var _scriptName = (typeof document !== "undefined" && document.currentScript && document.currentScript.src ? new URL("", document.currentScript.src).href : "");
 
 // `/` should be present at the end if `scriptDirectory` is not empty
 var scriptDirectory = '';
@@ -514,8 +514,8 @@ function findWasmBinary() {
     return locateFile('index.wasm');
   }
 
-  // Use bundler-friendly `new URL(..., import.meta.url)` pattern; works in browsers too.
-  return new URL('index.wasm', import.meta.url).href;
+  // Use bundler-friendly `new URL(..., (typeof document !== "undefined" && document.currentScript && document.currentScript.src ? new URL("", document.currentScript.src).href : ""))` pattern; works in browsers too.
+  return new URL('index.wasm', (typeof document !== "undefined" && document.currentScript && document.currentScript.src ? new URL("", document.currentScript.src).href : "")).href;
 
 }
 
@@ -1998,5 +1998,8 @@ for (const prop of Object.keys(Module)) {
 }
 
 // Export using a UMD style export, or ES6 exports if selected
-export default createEmscriptenModule;
+// Export as a global variable
+if (typeof window !== "undefined") {
+  window.createEmscriptenModule = createEmscriptenModule;
+}
 

@@ -69,8 +69,14 @@ class App {
             pauseMenu: document.getElementById('pause-menu'),
             resumeBtn: document.getElementById('resume-btn'),
             saveGameBtn: document.getElementById('save-game-btn'),
+            saveQuitBtn: document.getElementById('save-quit-btn'),
             settingsMenuBtn: document.getElementById('settings-menu-btn'),
-            quitToMenuBtn: document.getElementById('quit-to-menu-btn')
+            quitToMenuBtn: document.getElementById('quit-to-menu-btn'),
+            newGameModal: document.getElementById('new-game-modal'),
+            saveNameInput: document.getElementById('save-name'),
+            closeNewGameBtn: document.getElementById('close-new-game'),
+            cancelNewGameBtn: document.getElementById('cancel-new-game'),
+            confirmNewGameBtn: document.getElementById('confirm-new-game')
         };
     }
 
@@ -81,9 +87,46 @@ class App {
             settingsBtn,
             resumeBtn,
             saveGameBtn,
+            saveQuitBtn,
             settingsMenuBtn,
-            quitToMenuBtn
+            quitToMenuBtn,
+            newGameModal,
+            closeNewGameBtn,
+            cancelNewGameBtn,
+            confirmNewGameBtn,
+            saveNameInput
         } = this.elements;
+        
+        // New game modal handlers
+        if (closeNewGameBtn) {
+            closeNewGameBtn.addEventListener('click', () => this.hideNewGameModal());
+        }
+        
+        if (cancelNewGameBtn) {
+            cancelNewGameBtn.addEventListener('click', () => this.hideNewGameModal());
+        }
+        
+        if (confirmNewGameBtn) {
+            confirmNewGameBtn.addEventListener('click', () => this.confirmNewGame());
+        }
+        
+        // Close modal when clicking outside the content
+        if (newGameModal) {
+            newGameModal.addEventListener('click', (e) => {
+                if (e.target === newGameModal) {
+                    this.hideNewGameModal();
+                }
+            });
+            
+            // Handle Enter key in the save name input
+            if (saveNameInput) {
+                saveNameInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.confirmNewGame();
+                    }
+                });
+            }
+        }
 
         // Set up button event listeners
         // Main menu buttons
@@ -108,8 +151,12 @@ class App {
             saveGameBtn.addEventListener('click', () => this.onSaveGameClick());
         }
         
+        if (saveQuitBtn) {
+            saveQuitBtn.addEventListener('click', () => this.onSaveAndQuitClick());
+        }
+        
         if (settingsMenuBtn) {
-            settingsMenuBtn.addEventListener('click', () => this.onSettingsMenuClick());
+            settingsMenuBtn.addEventListener('click', () => this.showSettings());
         }
         
         if (quitToMenuBtn) {
@@ -225,6 +272,154 @@ class App {
         });
     }
     
+    // New game modal methods
+    showNewGameModal() {
+        const { newGameModal, saveNameInput } = this.elements;
+        
+        if (!newGameModal) {
+            console.error('New game modal element not found');
+            return;
+        }
+        
+        // Show the modal by removing the 'hidden' class first
+        newGameModal.classList.remove('hidden');
+        newGameModal.style.display = 'flex';
+        
+        // Reset input value and focus state
+        if (saveNameInput) {
+            saveNameInput.value = ''; // Clear any previous input
+        }
+        
+        // Small delay to ensure the modal is visible before focusing
+        setTimeout(() => {
+            // Set opacity and visibility with a small delay for the transition
+            newGameModal.style.opacity = '1';
+            newGameModal.style.visibility = 'visible';
+            
+            // Focus and select the input field
+            if (saveNameInput) {
+                saveNameInput.focus();
+                saveNameInput.select();
+            }
+        }, 10);
+        
+        // Prevent scrolling when modal is open
+        document.body.style.overflow = 'hidden';
+        
+        // Set up keyboard event listener for ESC key
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                this.hideNewGameModal();
+            }
+        };
+        
+        document.addEventListener('keydown', handleKeyDown);
+        this._newGameModalKeyHandler = handleKeyDown;
+        
+        // Close when clicking outside the modal content
+        newGameModal.onclick = (e) => {
+            if (e.target === newGameModal) {
+                this.hideNewGameModal();
+            }
+        };
+        
+        // Set up close and cancel buttons
+        const closeBtn = document.getElementById('close-new-game');
+        const cancelBtn = document.getElementById('cancel-new-game');
+        
+        if (closeBtn) closeBtn.onclick = () => this.hideNewGameModal();
+        if (cancelBtn) cancelBtn.onclick = () => this.hideNewGameModal();
+    }
+    
+    hideNewGameModal() {
+        const { newGameModal, closeNewGameBtn, cancelNewGameBtn } = this.elements;
+        if (!newGameModal) return;
+        
+        // Fade out the modal
+        newGameModal.style.opacity = '0';
+        
+        // After the fade out completes, hide the modal
+        setTimeout(() => {
+            newGameModal.style.visibility = 'hidden';
+            newGameModal.classList.add('hidden');
+            
+            // Re-enable scrolling
+            document.body.style.overflow = 'auto';
+        }, 200); // Match this with your CSS transition duration
+        
+        // Remove the keydown event listener if it exists
+        if (this._newGameModalKeyHandler) {
+            document.removeEventListener('keydown', this._newGameModalKeyHandler);
+            this._newGameModalKeyHandler = null;
+        }
+        if (closeNewGameBtn) closeNewGameBtn.onclick = null;
+        if (cancelNewGameBtn) cancelNewGameBtn.onclick = null;
+        
+        // Hide the modal with animation
+        newGameModal.style.opacity = '0';
+        newGameModal.style.visibility = 'hidden';
+        
+        // Re-enable scrolling
+        document.body.style.overflow = '';
+        
+        // Remove the modal from the DOM after the animation completes
+        setTimeout(() => {
+            newGameModal.style.display = 'none';
+        }, 300); // Match this with your CSS transition duration
+    }
+    
+    async confirmNewGame() {
+        const { saveNameInput } = this.elements;
+        let saveName = saveNameInput ? saveNameInput.value.trim() : 'My Game';
+        
+        // Provide a default name if empty
+        if (!saveName) {
+            saveName = 'My Game';
+        }
+        
+        // Store the save name in the game state
+        if (!this.gameState) this.gameState = {};
+        this.gameState.saveName = saveName;
+        
+        logger.log(`Starting new game with save name: ${saveName}`);
+        this.hideNewGameModal();
+        
+        try {
+            // Make sure WebAssembly is loaded
+            if (!window.Module) {
+                logger.error('WebAssembly module not loaded');
+                return;
+            }
+            
+            // Initialize the game state with the save name
+            logger.log('Initializing game state...');
+            
+            // Show the game container and hide the main menu and pause menu
+            const { gameContainer, mainMenu, pauseMenu } = this.elements;
+            if (gameContainer) gameContainer.classList.remove('hidden');
+            if (mainMenu) mainMenu.classList.add('hidden');
+            if (pauseMenu) pauseMenu.classList.add('hidden');
+            
+            // Reset the simulation with the save name
+            await this.resetSimulation(saveName);
+            
+            // Start the simulation and wait for it to complete
+            this.isRunning = true;
+            this.isPaused = false;
+            await this.startSimulation();
+            
+            logger.log('New game started successfully');
+            
+        } catch (error) {
+            logger.error('Failed to start new game:', error);
+            throw error;
+        }
+    }
+    
+    async startNewGame() {
+        this.showNewGameModal();
+    }
+    
     async loadWasm() {
         logger.log('Loading WebAssembly module...');
         
@@ -297,49 +492,283 @@ class App {
         }
     }
 
-    async startNewGame() {
-        logger.log('Starting new game...');
+    /**
+     * Shows the new game modal to get the save name
+     */
+    startNewGame() {
+        logger.log('Showing new game modal...');
+        // Reset any existing game state
+        this.gameState = this.gameState || {};
+        this.gameState.saveId = null; // Clear any existing save ID
+        this.showNewGameModal();
+    }
+
+    /**
+     * Shows the save manager modal with a list of saved games
+     */
+    showSaveManager() {
+        const saveManagerModal = document.getElementById('save-manager-modal');
+        const closeBtn = document.getElementById('close-save-manager');
+        
+        if (!saveManagerModal || !closeBtn) {
+            console.error('Save manager modal elements not found');
+            return;
+        }
+        
+        // Show the modal
+        saveManagerModal.classList.remove('hidden');
+        saveManagerModal.style.display = 'flex';
+        saveManagerModal.style.opacity = '1';
+        saveManagerModal.style.visibility = 'visible';
+        
+        // Prevent scrolling when modal is open
+        document.body.style.overflow = 'hidden';
+        
+        // Add ESC key handler
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                this.hideSaveManager();
+            }
+        };
+        
+        // Add event listeners
+        document.addEventListener('keydown', handleKeyDown);
+        closeBtn.onclick = () => this.hideSaveManager();
+        
+        // Store the keydown handler for cleanup
+        saveManagerModal._keyDownHandler = handleKeyDown;
+        
+        // Load and display saved games
+        this.refreshSaveList();
+    }
+    
+    /**
+     * Hides the save manager modal
+     */
+    hideSaveManager() {
+        const saveManagerModal = document.getElementById('save-manager-modal');
+        if (!saveManagerModal) return;
+        
+        // Remove the keydown event listener if it exists
+        if (saveManagerModal._keyDownHandler) {
+            document.removeEventListener('keydown', saveManagerModal._keyDownHandler);
+            delete saveManagerModal._keyDownHandler;
+        }
+        
+        // Remove the close button event listener
+        const closeBtn = document.getElementById('close-save-manager');
+        if (closeBtn) {
+            closeBtn.onclick = null;
+        }
+        
+        // Hide the modal with animation
+        saveManagerModal.style.opacity = '0';
+        saveManagerModal.style.visibility = 'hidden';
+        
+        // Reset body overflow
+        document.body.style.overflow = '';
+        
+        // Remove the modal from the DOM after the animation completes
+        setTimeout(() => {
+            saveManagerModal.style.display = 'none';
+        }, 300); // Match this with your CSS transition duration
+    }
+    
+    /**
+     * Refreshes the list of saved games in the save manager modal
+     */
+    refreshSaveList() {
+        const savesList = document.getElementById('saves-list');
+        if (!savesList) return;
+        
+        const saves = saveManager.getSaves();
+        
+        // Clear the current list
+        savesList.innerHTML = '';
+        
+        if (saves.length === 0) {
+            const noSaves = document.createElement('div');
+            noSaves.className = 'no-saves';
+            noSaves.textContent = 'No saved games found';
+            savesList.appendChild(noSaves);
+            return;
+        }
+        
+        // Add each save to the list
+        saves.forEach((save, index) => {
+            const saveItem = document.createElement('div');
+            saveItem.className = 'save-item';
+            saveItem.dataset.saveId = save.id;
+            
+            const saveDate = new Date(save.timestamp);
+            const formattedDate = saveDate.toLocaleString();
+            
+            saveItem.innerHTML = `
+                <div class="save-info">
+                    <h3>${save.name || 'Unnamed Save'}</h3>
+                    <div class="save-meta">
+                        <span><i>📅</i> ${formattedDate}</span>
+                        <span><i>🔄</i> ${save.metadata?.turnCount || 0} turns</span>
+                        <span><i>🧬</i> ${save.metadata?.creatureCount || 0} creatures</span>
+                    </div>
+                </div>
+                <div class="save-actions">
+                    <button class="load-btn" data-save-id="${save.id}">Load</button>
+                    <button class="delete-btn" data-save-id="${save.id}">Delete</button>
+                </div>
+            `;
+            
+            // Add event listeners for the buttons
+            const loadBtn = saveItem.querySelector('.load-btn');
+            const deleteBtn = saveItem.querySelector('.delete-btn');
+            
+            if (loadBtn) {
+                loadBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.loadGame(save.id);
+                });
+            }
+            
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showConfirmationModal(save);
+                });
+            }
+            
+            // Add click handler to the entire save item
+            saveItem.addEventListener('click', () => {
+                // Toggle selection
+                document.querySelectorAll('.save-item').forEach(item => {
+                    item.classList.remove('selected');
+                });
+                saveItem.classList.add('selected');
+            });
+            
+            savesList.appendChild(saveItem);
+        });
+        
+        // Add event listener for the close button
+        const closeBtn = document.getElementById('close-save-manager');
+        if (closeBtn) {
+            closeBtn.onclick = () => {
+                this.hideSaveManager();
+            };
+        }
+        
+        // Close when clicking outside the modal content
+        const modal = document.getElementById('save-manager-modal');
+        if (modal) {
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    this.hideSaveManager();
+                }
+            };
+        }
+    }
+
+    /**
+     * Shows a confirmation dialog before deleting a save
+     * @param {Object} save - The save object to be deleted
+     */
+    showConfirmationModal(save) {
+        const confirmationModal = document.getElementById('confirmation-modal');
+        const message = document.getElementById('confirmation-message');
+        const confirmBtn = document.getElementById('confirm-delete');
+        const cancelBtn = document.getElementById('cancel-delete');
+        const closeBtn = document.getElementById('close-confirmation');
+        
+        if (!confirmationModal || !message || !confirmBtn || !cancelBtn || !closeBtn) {
+            console.error('Confirmation modal elements not found');
+            return;
+        }
+        
+        // Set the confirmation message
+        message.textContent = `Are you sure you want to delete "${save.name || 'this save'}"?`;
+        
+        // Show the modal
+        confirmationModal.classList.remove('hidden');
+        confirmationModal.style.display = 'flex';
+        confirmationModal.style.opacity = '1';
+        confirmationModal.style.visibility = 'visible';
+        
+        // Store the save ID on the confirm button for later use
+        confirmBtn.dataset.saveId = save.id;
+        
+        // Set up event listeners
+        const hideModal = () => {
+            confirmationModal.style.opacity = '0';
+            confirmationModal.style.visibility = 'hidden';
+            setTimeout(() => {
+                confirmationModal.style.display = 'none';
+            }, 300);
+            
+            // Clean up event listeners
+            confirmBtn.onclick = null;
+            cancelBtn.onclick = null;
+            closeBtn.onclick = null;
+        };
+        
+        // Handle confirm button click
+        confirmBtn.onclick = () => {
+            const saveId = confirmBtn.dataset.saveId;
+            if (saveId) {
+                saveManager.deleteSave(saveId);
+                this.refreshSaveList();
+            }
+            hideModal();
+        };
+        
+        // Handle cancel and close button clicks
+        const cancelHandler = () => hideModal();
+        cancelBtn.onclick = cancelHandler;
+        closeBtn.onclick = cancelHandler;
+        
+        // Close when clicking outside the modal content
+        confirmationModal.onclick = (e) => {
+            if (e.target === confirmationModal) {
+                hideModal();
+            }
+        };
+    }
+    
+    /**
+     * Loads a saved game
+     * @param {string} saveId - The ID of the save to load
+     */
+    async loadGame(saveId) {
+        logger.log(`Loading game with ID: ${saveId}`);
         
         try {
-            // Make sure WebAssembly is loaded
-            if (!window.Module) {
-                logger.error('WebAssembly module not loaded');
+            // Load the saved game state
+            const savedState = saveManager.loadGame(saveId);
+            
+            if (!savedState) {
+                logger.error('Failed to load saved game: Invalid save data');
+                alert('Failed to load saved game. The save file may be corrupted.');
                 return;
             }
             
-            // Initialize the game state
-            logger.log('Initializing game state...');
+            // Hide the save manager modal
+            this.hideSaveManager();
             
-            // Show the game container and hide the main menu and pause menu
-            const { gameContainer, mainMenu, pauseMenu } = this.elements;
-            if (gameContainer) gameContainer.classList.remove('hidden');
-            if (mainMenu) mainMenu.classList.add('hidden');
-            if (pauseMenu) pauseMenu.classList.add('hidden');
+            // Reset the simulation with the loaded state
+            await this.resetSimulation(savedState.saveName || 'Loaded Game');
             
-            // Reset the simulation first
-            await this.resetSimulation();
+            // Apply the loaded game state
+            this.gameState = { ...this.gameState, ...savedState };
             
-            // Start the simulation and wait for it to complete
+            // Start the simulation
             this.isRunning = true;
             this.isPaused = false;
             await this.startSimulation();
             
-            logger.log('New game started successfully');
+            logger.log('Game loaded successfully');
             
         } catch (error) {
-            logger.error('Failed to start new game:', error);
-            throw error;
+            logger.error('Error loading game:', error);
+            alert('An error occurred while loading the game. Please check the console for details.');
         }
-    }
-
-    showSaveManager() {
-        logger.log('Showing save manager...');
-        // Implementation for showing save manager
-    }
-
-    loadGame(saveId) {
-        logger.log(`Loading game with ID: ${saveId}`);
-        // Implementation for loading a saved game
     }
 
     showSettings() {
@@ -417,37 +846,42 @@ class App {
             // Create a simple render loop
             const canvas = document.querySelector('canvas');
             if (!canvas) {
-                throw new Error('Canvas element not found');
+                logger.error('Canvas element not found');
+                return;
             }
             
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                throw new Error('Could not get canvas context');
-            }
-            
-            // Set up the animation loop
-            const render = () => {
+            // Define render function
+            const render = (timestamp) => {
                 if (!this.isRunning) return;
                 
-                // Clear the canvas
-                ctx.fillStyle = '#000';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                // Draw a simple grid for now
-                this.drawGrid(ctx, canvas.width, canvas.height);
-                
-                // Continue the animation loop
-                requestAnimationFrame(render);
+                try {
+                    // Clear the canvas
+                    const canvas = document.querySelector('canvas');
+                    if (!canvas) return;
+                    
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) return;
+                    
+                    // Clear the canvas
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Draw the grid
+                    this.drawGrid();
+                    
+                    // Draw any game objects here
+                    
+                    // Continue the render loop
+                    this.currentMainLoop = window.requestAnimationFrame(render);
+                } catch (error) {
+                    logger.error('Error in render loop:', error);
+                }
             };
             
             // Start the render loop
-            this.isRunning = true;
-            render();
-            
-            logger.log('Render loop started', 'success');
-            
+            this.currentMainLoop = window.requestAnimationFrame(render);
+            logger.log('Render loop started');
         } catch (error) {
-            logger.error('Failed to start simulation:', error);
+            logger.error('Error starting simulation:', error);
             throw error;
         }
     }
@@ -514,11 +948,115 @@ class App {
     /**
      * Handles the Save Game button click in the pause menu
      */
+    /**
+     * Handles the Save & Quit button click in the pause menu
+     */
+    async onSaveAndQuitClick() {
+        logger.log('Save & Quit clicked');
+        
+        try {
+            // First save the game
+            await this.onSaveGameClick();
+            
+            // Small delay to show the save notification
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Then quit to menu
+            this.onQuitToMenuClick();
+        } catch (error) {
+            logger.error('Error during save & quit:', error);
+            this.showNotification('Error saving game. Changes may not be saved.');
+        }
+    }
+    
+    /**
+     * Handles the Save Game button click in the pause menu
+     */
     onSaveGameClick() {
         logger.log('Saving game...');
-        // TODO: Implement save game functionality
-        // This will be implemented when we add the save system
-        alert('Save game functionality coming soon!');
+        
+        // Check if we have a game state
+        if (!this.gameState) {
+            logger.error('No active game state to save');
+            this.showNotification('Error: No active game to save');
+            return Promise.reject('No active game state');
+        }
+        
+        try {
+            // Create a simplified game state for saving
+            const gameState = {
+                turnCount: this.gameState.turnCount || 0,
+                // Include other game state properties as needed
+                ...this.gameState
+            };
+            
+            // Check if this is an existing game with a save ID
+            const saveId = this.gameState.saveId;
+            const saveName = this.gameState.saveName || `Game ${new Date().toLocaleString()}`;
+            
+            if (saveId) {
+                // Update existing save
+                const updatedSave = saveManager.saveGame(gameState, saveName, saveId);
+                if (updatedSave) {
+                    logger.log('Game saved successfully:', updatedSave);
+                    this.showNotification('Game saved successfully!');
+                } else {
+                    throw new Error('Failed to update save');
+                }
+            } else {
+                // Create a new save with the current game name or a default name
+                const saveName = this.gameState.saveName || `Game ${new Date().toLocaleString()}`;
+                const newSave = saveManager.saveGame(gameState, saveName);
+                if (newSave) {
+                    // Store the save ID and name for future updates
+                    this.gameState.saveId = newSave.id;
+                    this.gameState.saveName = saveName; // Ensure name is stored for future saves
+                    logger.log('New game saved:', newSave);
+                    this.showNotification('New game saved successfully!');
+                } else {
+                    throw new Error('Failed to create new save');
+                }
+            }
+        } catch (error) {
+            logger.error('Error saving game:', error);
+            this.showNotification('Error saving game: ' + (error.message || 'Unknown error'));
+        }
+    }
+    
+    /**
+     * Shows a notification message to the user
+     * @param {string} message - The message to display
+     * @param {number} [duration=3000] - How long to show the notification in milliseconds
+     */
+    showNotification(message, duration = 3000) {
+        // Create notification element if it doesn't exist
+        let notification = document.getElementById('notification');
+        if (!notification) {
+            notification = document.createElement('div');
+            notification.id = 'notification';
+            notification.style.position = 'fixed';
+            notification.style.bottom = '20px';
+            notification.style.left = '50%';
+            notification.style.transform = 'translateX(-50%)';
+            notification.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+            notification.style.color = 'white';
+            notification.style.padding = '10px 20px';
+            notification.style.borderRadius = '4px';
+            notification.style.zIndex = '1000';
+            notification.style.transition = 'opacity 0.3s ease-in-out';
+            notification.style.opacity = '0';
+            document.body.appendChild(notification);
+        }
+        
+        // Set message and show
+        notification.textContent = message;
+        notification.style.opacity = '1';
+        
+        // Auto-hide after duration
+        clearTimeout(notification._hideTimeout);
+        notification._hideTimeout = setTimeout(() => {
+            notification.style.opacity = '0';
+        }, duration);
     }
     
     onQuitToMenuClick() {
@@ -627,76 +1165,73 @@ class App {
      * @param {number} [height] - Optional canvas height
      */
     async drawGrid(ctx, width, height) {
-        // If no context is provided, get it from the canvas
-        if (!ctx) {
-            const canvas = document.querySelector('canvas');
-            if (!canvas) return;
+        try {
+            // If no context is provided, get it from the canvas
+            if (!ctx) {
+                const canvas = document.querySelector('canvas');
+                if (!canvas) return;
+                
+                ctx = canvas.getContext('2d');
+                if (!ctx) return;
+                
+                width = width || canvas.width;
+                height = height || canvas.height;
+            }
             
-            ctx = canvas.getContext('2d');
-            if (!ctx) return;
+            // If we have a grid, use its cell size, otherwise default to 20
+            const cellSize = this.grid?.cellSize || 20;
             
-            width = canvas.width;
-            height = canvas.height;
-        }
-        
-        // If we have a grid, use its cell size, otherwise default to 20
-        const cellSize = this.grid?.cellSize || 20;
-        
-        // Set grid line style
-        ctx.strokeStyle = this.grid ? '#1a1a1a' : '#333333';
-        ctx.lineWidth = this.grid ? 1 : 0.5;
-        
-        // Vertical lines
-        for (let x = 0; x <= width; x += cellSize) {
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, height);
-            ctx.stroke();
-        }
-        
-        // Horizontal lines
-        for (let y = 0; y <= height; y += cellSize) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(width, y);
-            ctx.stroke();
+            // Set grid line style
+            ctx.strokeStyle = this.grid ? '#1a1a1a' : '#333333';
+            ctx.lineWidth = this.grid ? 1 : 0.5;
+            
+            // Vertical lines
+            for (let x = 0; x <= width; x += cellSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+            
+            // Horizontal lines
+            for (let y = 0; y <= height; y += cellSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+            
+            return true;
+            
+        } catch (error) {
+            logger.error('Error drawing grid:', error);
+            throw error;
         }
     }
     
-    async resetSimulation() {
-        logger.log('Resetting simulation...');
-        
+    /**
+     * Resets the simulation to its initial state
+     * @param {string} [saveName='My Game'] - Name of the save file
+     * @returns {Promise<boolean>} True if reset was successful
+     */
+    async resetSimulation(saveName = 'My Game') {
         try {
+            logger.log(`Resetting simulation with save name: ${saveName}`);
+            
             // Stop any running simulation
-            this.isRunning = false;
-            
-            // Clear the canvas
-            const canvas = document.querySelector('canvas');
-            if (canvas) {
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                }
+            if (this.currentMainLoop) {
+                window.cancelAnimationFrame(this.currentMainLoop);
+                this.currentMainLoop = null;
             }
             
-            // Reset the WebAssembly module if available
-            if (window.Module) {
-                // Try different ways to stop the main loop
-                if (typeof window.Module._emscripten_cancel_main_loop === 'function') {
-                    window.Module._emscripten_cancel_main_loop();
-                } 
-                else if (window.Module.asm && window.Module.asm._emscripten_cancel_main_loop) {
-                    window.Module.asm._emscripten_cancel_main_loop();
-                }
-                
-                // Reset the module state if possible
-                if (window.Module.asm && typeof window.Module.asm._reset === 'function') {
-                    window.Module.asm._reset();
-                } 
-                else if (typeof window.Module._reset === 'function') {
-                    window.Module._reset();
-                }
-            }
+            // Reset game state
+            this.gameState = {
+                isRunning: false,
+                isPaused: false,
+                saveName: saveName,
+                createdAt: new Date().toISOString(),
+                lastSaved: null
+            };
             
             // Reinitialize the grid
             await this.initializeSimulationGrid();
