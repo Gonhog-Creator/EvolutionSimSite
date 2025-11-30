@@ -4,6 +4,12 @@ export class UIManager {
     constructor(app) {
         this.app = app;
         this.elements = {};
+        this.fps = 0;
+        this.lastTime = performance.now();
+        this.frames = 0;
+        this.simulationTime = 0;
+        this.lastUpdateTime = 0;
+        this.debugOverlay = null;
         
         // Store saveManager reference with error handling
         if (app && app.saveManager) {
@@ -35,7 +41,69 @@ export class UIManager {
     initialize() {
         this.initializeElements();
         this.setupButtonListeners();
+        this.createDebugOverlay();
         logger.log('UI Manager initialized');
+    }
+    
+    /**
+     * Creates the debug overlay element
+     */
+    createDebugOverlay() {
+        this.debugOverlay = document.createElement('div');
+        this.debugOverlay.id = 'debug-overlay';
+        this.debugOverlay.style.position = 'fixed';
+        this.debugOverlay.style.top = '10px';
+        this.debugOverlay.style.left = '10px';
+        this.debugOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        this.debugOverlay.style.color = '#fff';
+        this.debugOverlay.style.padding = '8px 12px';
+        this.debugOverlay.style.borderRadius = '4px';
+        this.debugOverlay.style.fontFamily = 'monospace';
+        this.debugOverlay.style.fontSize = '14px';
+        this.debugOverlay.style.zIndex = '1000';
+        this.debugOverlay.style.pointerEvents = 'none';
+        this.debugOverlay.style.userSelect = 'none';
+        this.debugOverlay.style.lineHeight = '1.5';
+        this.debugOverlay.innerHTML = 'FPS: 0\nTime: 0.0s\nTemp: N/A';
+        
+        document.body.appendChild(this.debugOverlay);
+    }
+    
+    /**
+     * Updates the debug overlay with current stats
+     * @param {number} time - Current timestamp
+     * @param {Object} cellInfo - Information about the selected cell
+     */
+    updateDebugOverlay(time, cellInfo = null) {
+        if (!this.debugOverlay) return;
+        
+        // Calculate FPS
+        this.frames++;
+        if (time - this.lastTime >= 1000) {
+            this.fps = Math.round((this.frames * 1000) / (time - this.lastTime));
+            this.frames = 0;
+            this.lastTime = time;
+        }
+        
+        // Update simulation time (in seconds with 1 decimal place)
+        if (this.app && this.app.isRunning && !this.app.isPaused) {
+            const delta = (time - this.lastUpdateTime) / 1000; // Convert to seconds
+            this.simulationTime += delta;
+        }
+        this.lastUpdateTime = time;
+        
+        // Get temperature or show N/A if no cell is selected
+        let infoText = 'No cell selected';
+        if (cellInfo && cellInfo.temp !== undefined) {
+            infoText = `Temp: ${cellInfo.temp.toFixed(1)}°C`;
+        }
+        
+        // Update overlay content
+        this.debugOverlay.innerHTML = `
+            FPS: ${this.fps}<br>
+            Time: ${this.simulationTime.toFixed(1)}s<br>
+            ${infoText}
+        `;
     }
 
     initializeElements() {

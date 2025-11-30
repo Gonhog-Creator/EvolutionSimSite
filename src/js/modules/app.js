@@ -28,11 +28,8 @@ class App {
                 const change = isDecrease ? -10 : 10;
                 const newTemp = currentTemp + change;
                 this.temperatureManager.setTemperature(x, y, newTemp);
-                const action = isDecrease ? 'Decreased' : 'Increased';
-                logger.log(`${action} temperature at (${x}, ${y}) to ${newTemp.toFixed(1)}°C`);
-            } else {
-                logger.log('Temperature adjustment requires admin mode');
             }
+            // No logging of temperature changes
         };
         
         // Initialize Save Manager
@@ -145,6 +142,22 @@ class App {
             // Draw selection and hover effects
             if (this.selectionManager) {
                 this.selectionManager.render(ctx);
+                
+                // Update debug overlay with selected cell info
+                let cellInfo = null;
+                const selectedCell = this.selectionManager.getSelectedCell();
+                if (selectedCell && this.temperatureManager) {
+                    const temp = this.temperatureManager.getTemperature(selectedCell.x, selectedCell.y);
+                    cellInfo = { 
+                        temp,
+                        x: selectedCell.x,
+                        y: selectedCell.y
+                    };
+                }
+                
+                if (this.uiManager && this.uiManager.updateDebugOverlay) {
+                    this.uiManager.updateDebugOverlay(timestamp, cellInfo);
+                }
             }
             
             // Continue the animation loop if running
@@ -290,32 +303,75 @@ class App {
      * Updates the UI to reflect the current admin status
      */
     updateAdminUI() {
-        // Create or update the admin indicator
-        if (!this.adminIndicator) {
+        // Create or update the admin container
+        if (!this.adminContainer) {
+            // Create a container for admin UI elements
+            this.adminContainer = document.createElement('div');
+            this.adminContainer.id = 'admin-container';
+            this.adminContainer.style.position = 'fixed';
+            this.adminContainer.style.top = '10px';
+            this.adminContainer.style.right = '10px';
+            this.adminContainer.style.display = 'flex';
+            this.adminContainer.style.flexDirection = 'column';
+            this.adminContainer.style.gap = '5px';
+            this.adminContainer.style.zIndex = '1000';
+            document.body.appendChild(this.adminContainer);
+            
+            // Create the admin indicator
             this.adminIndicator = document.createElement('div');
             this.adminIndicator.id = 'admin-indicator';
-            this.adminIndicator.style.position = 'fixed';
-            this.adminIndicator.style.top = '10px';
-            this.adminIndicator.style.right = '10px';
             this.adminIndicator.style.padding = '5px 10px';
             this.adminIndicator.style.borderRadius = '4px';
             this.adminIndicator.style.fontFamily = 'monospace';
             this.adminIndicator.style.fontWeight = 'bold';
-            this.adminIndicator.style.zIndex = '1000';
-            document.body.appendChild(this.adminIndicator);
+            this.adminIndicator.textContent = 'ADMIN MODE';
+            this.adminContainer.appendChild(this.adminIndicator);
+            
+            // Create the brush button
+            this.adminBrushButton = document.createElement('button');
+            this.adminBrushButton.id = 'admin-brush-button';
+            this.updateBrushButtonText();
+            this.adminBrushButton.style.padding = '5px 10px';
+            this.adminBrushButton.style.borderRadius = '4px';
+            this.adminBrushButton.style.border = '1px solid #ccc';
+            this.adminBrushButton.style.cursor = 'pointer';
+            this.adminBrushButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.selectionManager) {
+                    this.selectionManager.toggleBrushSize();
+                    this.updateBrushButtonText();
+                    logger.log(`Brush size toggled to ${this.selectionManager.brushSize === 0 ? '1x1' : '5x5 circle'}`);
+                }
+            });
+            this.adminContainer.appendChild(this.adminBrushButton);
         }
         
+        // Update visibility based on admin mode
         if (this.isAdmin) {
-            this.adminIndicator.textContent = 'ADMIN MODE';
-            this.adminIndicator.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
-            this.adminIndicator.style.color = 'white';
+            this.adminContainer.style.display = 'flex';
             this.adminIndicator.style.display = 'block';
+            this.adminBrushButton.style.display = 'block';
             
-            // Add admin-specific keyboard shortcuts or UI elements here
+            // Set admin mode on selection manager
+            if (this.selectionManager) {
+                this.selectionManager.isAdmin = true;
+            }
+            
+            // Add admin keydown listener
             document.addEventListener('keydown', this.handleAdminKeyDown.bind(this));
         } else {
+            this.adminContainer.style.display = 'none';
             this.adminIndicator.style.display = 'none';
+            this.adminBrushButton.style.display = 'none';
+            
+            // Remove admin keydown listener
             document.removeEventListener('keydown', this.handleAdminKeyDown.bind(this));
+            
+            // Reset selection manager admin state
+            if (this.selectionManager) {
+                this.selectionManager.isAdmin = false;
+                this.selectionManager.brushSize = 0; // Reset brush size when exiting admin mode
+            }
         }
     }
     
@@ -392,6 +448,17 @@ class App {
             // Start checking
             checkReady();
         });
+    }
+    
+    /**
+     * Updates the brush button text based on the current brush size
+     */
+    updateBrushButtonText() {
+        if (this.adminBrushButton && this.selectionManager) {
+            this.adminBrushButton.textContent = `Brush: ${this.selectionManager.brushSize === 0 ? '1x1' : '5x5'}`;
+            this.adminBrushButton.style.backgroundColor = this.selectionManager.brushSize === 0 ? '#f0f0f0' : '#4CAF50';
+            this.adminBrushButton.style.color = this.selectionManager.brushSize === 0 ? '#000' : '#fff';
+        }
     }
     
     // New game modal methods
@@ -978,10 +1045,11 @@ class App {
      * @returns {string} CSS color string
      */
     getTemperatureColor(temp) {
-        const { minTemp, maxTemp } = this.temperatureSettings;
+        const { minTemp, maxTemp } = this.temperatureSettings || { minTemp: 0, maxTemp: 100 };
         
         // Normalize temperature to 0-1 range
-        let t = (temp - minTemp) / (maxTemp - minTemp);
+        const range = maxTemp - minTemp;
+        let t = range !== 0 ? (temp - minTemp) / range : 0.5;
         t = Math.max(0, Math.min(1, t)); // Clamp to 0-1
         
         // Create gradient from blue (cold) to red (hot)
@@ -990,7 +1058,7 @@ class App {
         
         return `rgb(${r}, 0, ${b})`;
     }
-    
+
     /**
      * Handles keyboard input
      * @param {KeyboardEvent} event - The keyboard event
@@ -999,14 +1067,22 @@ class App {
         // Toggle temperature view with 't' key
         if (event.key.toLowerCase() === 't') {
             this.showTemperature = !this.showTemperature;
-            logger.log(`Temperature view ${this.showTemperature ? 'enabled' : 'disabled'}`);
             
-            // Update tooltip for hovered cell
-            const hoveredCell = this.selectionManager.getHoveredCell();
-            if (hoveredCell) {
-                const temp = this.temperatureManager.getTemperature(hoveredCell.x, hoveredCell.y);
-                this.selectionManager.updateTooltip(temp);
+            // Update tooltip for hovered cell if selectionManager is available
+            if (this.selectionManager && typeof this.selectionManager.getHoveredCell === 'function') {
+                const hoveredCell = this.selectionManager.getHoveredCell();
+                if (hoveredCell && this.temperatureManager) {
+                    const temp = this.temperatureManager.getTemperature(hoveredCell.x, hoveredCell.y);
+                    if (this.selectionManager.updateTooltip) {
+                        this.selectionManager.updateTooltip(temp);
+                    }
+                }
             }
+            
+            // Prevent default and stop propagation
+            event.preventDefault();
+            event.stopPropagation();
+            return false;
         }
     }
     
