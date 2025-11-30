@@ -13,7 +13,7 @@ const extensions = ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.wasm'];
 
 export default defineConfig(({ mode }) => ({
   root: 'src',
-  base: process.env.NODE_ENV === 'production' ? '/EvolutionSimSite/' : '/',
+  base: process.env.NODE_ENV === 'production' ? '/EvolutionSimSite' : '/',
   publicDir: 'public',
   assetsInclude: ['**/*.wasm'],
   resolve: {

@@ -48,15 +48,30 @@ jobs:
           # Copy 404.html to dist
           cp 404.html dist/
           
-          # Create a simple index.html in the root of dist to redirect to the app
+          # Create .nojekyll file to ensure all files are served
+          touch dist/.nojekyll
+          
+          # Create a simple index.html in the root of dist to serve the app
           cat > dist/index.html << 'EOL'
           <!DOCTYPE html>
           <html>
           <head>
-            <meta http-equiv="refresh" content="0; URL='/EvolutionSimSite/index.html'" />
+            <meta charset="utf-8">
+            <title>Evolution Simulator</title>
+            <meta http-equiv="X-UA-Compatible" content="IE=edge">
+            <meta name="viewport" content="width=device-width,initial-scale=1.0">
+            <link rel="icon" href="/EvolutionSimSite/favicon.ico">
+            <script>
+              // Redirect to the app with proper base URL
+              const base = '/EvolutionSimSite';
+              const path = window.location.pathname.replace(base, '');
+              if (path === '' || path === '/') {
+                window.location.href = base + '/index.html';
+              }
+            </script>
           </head>
           <body>
-            <p>Redirecting to <a href="/EvolutionSimSite/index.html">/EvolutionSimSite/index.html</a>...</p>
+            <p>Loading Evolution Simulator... <a href="/EvolutionSimSite/index.html">Click here</a> if not redirected.</p>
           </body>
           </html>
           EOL
