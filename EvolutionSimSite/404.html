@@ -2,22 +2,24 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Redirecting...</title>
+    <title>Loading Evolution Simulator...</title>
     <script>
-        // Get the current path and redirect to the main app with the path as a hash
+        // Store the current path
         const path = window.location.pathname;
         const search = window.location.search;
         const hash = window.location.hash;
         
-        // Remove the base path if it exists
+        // Handle base path for GitHub Pages
         const basePath = '/EvolutionSimSite';
         let newPath = path;
         
+        // Remove the base path if it exists in the current path
         if (path.startsWith(basePath)) {
             newPath = path.substring(basePath.length);
         }
         
-        // Redirect to the main app with the path as a hash
+        // If we're not already at the root, redirect to the root with the path as a hash
+        if (newPath !== '/') {
         window.location.href = `${basePath}/index.html${search}${hash}`;
     </script>
     <meta http-equiv="refresh" content="0; URL='/EvolutionSimSite/index.html'">
