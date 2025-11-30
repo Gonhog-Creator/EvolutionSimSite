@@ -3575,7 +3575,6 @@ run();
 
 );
 })();
-// Export as a global variable
 if (typeof window !== "undefined") {
   window.createEmscriptenModule = createEmscriptenModule;
 }
