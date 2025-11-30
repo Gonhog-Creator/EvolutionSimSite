@@ -37,5 +37,7 @@ yarn-error.log*
 # Local development files
 *.local
 
-# Emscripten cache
+# Emscripten
 .cache/
+emsdk/
+/emsdk/

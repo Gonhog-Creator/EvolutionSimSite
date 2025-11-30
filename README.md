@@ -2,6 +2,8 @@
 
 A browser-native C++ simulation game engine compiled to WebAssembly with WebGPU/WebGL2 support.
 
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live%20Demo-brightgreen)](https://Gonhog-Creator.github.io/EvolutionSimSite/)
+
 ## Features
 
 - 🚀 High-performance C++ core compiled to WebAssembly

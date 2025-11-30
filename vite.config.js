@@ -63,7 +63,7 @@ function wasmPlugin() {
 
 export default defineConfig({
   root: 'src',
-  base: '/',
+  base: process.env.NODE_ENV === 'production' ? '/EvolutionSimSite/' : '/',
   publicDir: 'public',
   server: {
     port: 3000,
