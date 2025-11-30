@@ -36,6 +36,9 @@ jobs:
           source "${EMSDK}/emsdk_env.sh"
           # Print Emscripten version for debugging
           emcc --version
+          # Set environment variables for the build
+          echo "EMSDK=${EMSDK}" >> $GITHUB_ENV
+          echo "PATH=${EMSDK}:${EMSDK}/upstream/emscripten:${PATH}" >> $GITHUB_ENV
           # Run the build
           npm run build
 

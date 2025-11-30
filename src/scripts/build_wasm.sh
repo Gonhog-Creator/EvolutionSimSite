@@ -30,13 +30,27 @@ echo "Creating build directory: $BUILD_DIR"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 
+# Find Emscripten toolchain file
+if [ -z "$EMSDK" ]; then
+    echo "Error: EMSDK environment variable is not set"
+    exit 1
+fi
+
+TOOLCHAIN_FILE="${EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake"
+if [ ! -f "$TOOLCHAIN_FILE" ]; then
+    echo "Error: Could not find Emscripten toolchain file at $TOOLCHAIN_FILE"
+    exit 1
+fi
+
+echo "Using Emscripten toolchain: $TOOLCHAIN_FILE"
+
 # Configure with Emscripten
 echo "Configuring with Emscripten..."
 cd "$BUILD_DIR"
 emcmake cmake "$PROJECT_DIR/.." \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-    -DCMAKE_TOOLCHAIN_FILE="$EMSDK_DIR/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake"
+    -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN_FILE"
 
 # Build the project
 echo "Building project..."
