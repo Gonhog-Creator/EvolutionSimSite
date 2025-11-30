@@ -54,7 +54,7 @@ emcmake cmake "$PROJECT_DIR/.." \
 
 # Build the project
 echo "Building project..."
-cmake --build . --config Debug
+cmake --build . --config Debug --target install
 
 # Create output directory
 OUTPUT_DIR="$PROJECT_DIR/public/wasm"
@@ -65,5 +65,11 @@ cp "$BUILD_DIR/"*.{js,wasm,worker.js} "$OUTPUT_DIR/" 2>/dev/null || true
 
 # Copy the HTML file if it exists
 cp "$BUILD_DIR/"*.html "$OUTPUT_DIR/" 2>/dev/null || true
+
+echo "Copying assets to build directory"
+# Copy any additional assets if needed
+if [ -d "$PROJECT_DIR/../assets" ]; then
+    cp -r "$PROJECT_DIR/../assets" "$OUTPUT_DIR/"
+fi
 
 echo "Build complete! Files are in $OUTPUT_DIR"

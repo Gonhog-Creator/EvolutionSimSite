@@ -1,6 +1,14 @@
 import { defineConfig } from 'vite';
-import { resolve } from 'path';
-import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { readFileSync, existsSync } from 'fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Determine the base URL based on the environment
+const isProduction = process.env.NODE_ENV === 'production';
+const base = isProduction ? '/EvolutionSimSite/' : '/';
 
 // WebAssembly plugin to handle .wasm files and transform the JavaScript glue code
 function wasmPlugin() {
@@ -13,9 +21,9 @@ function wasmPlugin() {
           if (req.url.endsWith('.wasm')) {
             res.setHeader('Content-Type', 'application/wasm');
             res.setHeader('Cache-Control', 'no-cache');
-            const filePath = resolve(__dirname, 'src/public/wasm', req.url.split('/').pop());
-            if (fs.existsSync(filePath)) {
-              res.end(fs.readFileSync(filePath));
+            const filePath = path.resolve(__dirname, 'src/public/wasm', req.url.split('/').pop());
+            if (existsSync(filePath)) {
+              res.end(readFileSync(filePath));
               return;
             }
           }
@@ -23,16 +31,13 @@ function wasmPlugin() {
           if (req.url.startsWith('/wasm/') && req.url.endsWith('.js')) {
             res.setHeader('Content-Type', 'application/javascript');
             res.setHeader('Cache-Control', 'no-cache');
-            const filePath = resolve(__dirname, 'src/public', req.url);
-            if (fs.existsSync(filePath)) {
-              let content = fs.readFileSync(filePath, 'utf-8');
-              
-              // Replace import.meta.url with a dynamic URL based on the script location
+            const filePath = path.resolve(__dirname, 'src/public', req.url);
+            if (existsSync(filePath)) {
+              let content = readFileSync(filePath, 'utf-8');
               content = content.replace(
                 /import\.meta\.url/g,
                 'new URL("", import.meta.url).href'
               );
-              
               res.end(content);
               return;
             }
@@ -40,37 +45,21 @@ function wasmPlugin() {
           next();
         });
       };
-    },
-    // Ensure WASM files are copied to the build output
-    build: {
-      assetsInlineLimit: 0, // Don't inline WASM files
-      rollupOptions: {
-        input: {
-          main: resolve(__dirname, 'src/index.html'),
-        },
-        output: {
-          assetFileNames: (assetInfo) => {
-            if (assetInfo.name.endsWith('.wasm')) {
-              return 'wasm/[name][extname]';
-            }
-            return 'assets/[name]-[hash][extname]';
-          },
-        },
-      },
-    },
+    }
   };
 }
 
 export default defineConfig({
-  root: 'src',
-  base: process.env.NODE_ENV === 'production' ? '/EvolutionSimSite/' : '/',
+  root: path.resolve(__dirname, 'src'),
+  base: base,
   publicDir: 'public',
+  appType: 'spa',
   server: {
     port: 3000,
     host: 'localhost',
     open: false,
     fs: {
-      allow: ['..', __dirname, process.cwd()],
+      allow: [__dirname, process.cwd()],
       strict: true
     },
     headers: {
@@ -81,7 +70,10 @@ export default defineConfig({
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization'
     },
-    cors: true
+    cors: true,
+    hmr: {
+      overlay: true
+    }
   },
   optimizeDeps: {
     exclude: ['@emscripten'],
@@ -92,11 +84,9 @@ export default defineConfig({
       }
     }
   },
-  plugins: [
-    wasmPlugin()
-  ],
+  plugins: [wasmPlugin()],
   build: {
-    outDir: '../dist',
+    outDir: path.resolve(__dirname, 'dist'),
     emptyOutDir: true,
     assetsDir: 'assets',
     target: 'esnext',
@@ -106,6 +96,9 @@ export default defineConfig({
       transformMixedEsModules: true
     },
     rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'src/index.html')
+      },
       output: {
         assetFileNames: (assetInfo) => {
           if (assetInfo.name.endsWith('.wasm')) {
@@ -120,9 +113,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      // Point /wasm to the correct location of your wasm files
-      '/wasm': resolve(__dirname, 'src/public/wasm')
+      '/wasm': path.resolve(__dirname, 'src/public/wasm')
     }
   },
-  plugins: [wasmPlugin()]
+  define: {
+    'import.meta.env.BASE_URL': JSON.stringify(base)
+  }
 });

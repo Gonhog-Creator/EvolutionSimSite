@@ -3,31 +3,42 @@
 # Exit on error
 set -e
 
-# Create necessary directories
-mkdir -p src/public/wasm
+# Get the directory of this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Ensure wasm directory exists
-mkdir -p src/public/wasm
+# Source directory (where the built files are)
+SRC_DIR="$SCRIPT_DIR/../../build_wasm"
 
-# Copy WebAssembly files to the public directory
-if [ -d "build_wasm" ]; then
-    echo "Copying WebAssembly files from build_wasm/ to src/public/wasm/"
-    
-    # Remove any existing files first
-    rm -f src/public/wasm/*
-    
-    # Copy only .js, .wasm, and .worker.js files, explicitly excluding index.html
-    find build_wasm/ -maxdepth 1 -type f \( -name '*.js' -o -name '*.wasm' -o -name '*.worker.js' \) \
-        ! -name 'index.html' \
-        -exec cp {} src/public/wasm/ \; 2>/dev/null || echo "No wasm files found in build_wasm/"
-        
-    # Verify the files were copied
-    echo "Copied files to wasm directory:"
-    ls -la src/public/wasm/
+# Destination directory (where the web server expects the files)
+DEST_DIR="$SCRIPT_DIR/../../src/public/wasm"
+
+# Create destination directory if it doesn't exist
+mkdir -p "$DEST_DIR"
+
+echo "Setting up WebAssembly files..."
+echo "Source: $SRC_DIR"
+echo "Destination: $DEST_DIR"
+
+# Clean up the destination directory except the directory itself
+echo "Cleaning up $DEST_DIR"
+find "$DEST_DIR" -mindepth 1 -delete 2>/dev/null || true
+
+# Copy the built files to the destination directory
+echo "Copying WebAssembly files..."
+cp "$SRC_DIR/"*.{js,wasm,data,html} "$DEST_DIR/" 2>/dev/null || echo "No files to copy"
+
+# Copy any additional assets if they exist
+if [ -d "$SRC_DIR/assets" ]; then
+    echo "Copying assets..."
+    cp -r "$SRC_DIR/assets" "$DEST_DIR/"
 fi
 
 # Set proper permissions
 echo "Setting file permissions..."
-chmod 644 src/public/wasm/* 2>/dev/null || echo "No files to set permissions for"
+find "$DEST_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
 
-echo "WebAssembly setup complete. Files are in src/public/wasm/"
+# Verify the files were copied
+echo "Copied files to wasm directory:"
+ls -la "$DEST_DIR/"
+
+echo "WebAssembly setup complete. Files are in $DEST_DIR/"
