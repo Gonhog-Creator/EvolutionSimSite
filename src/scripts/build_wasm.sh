@@ -6,14 +6,21 @@ set -e
 # Source Emscripten environment
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR/.."
-EMSDK_DIR="$PROJECT_DIR/../emsdk"
 
-if [ -f "$EMSDK_DIR/emsdk_env.sh" ]; then
-    echo "Sourcing Emscripten environment..."
-    source "$EMSDK_DIR/emsdk_env.sh"
+# Check for GitHub Actions environment first
+if [ -n "$EMSDK" ] && [ -f "$EMSDK/emsdk_env.sh" ]; then
+    echo "[CI] Sourcing Emscripten environment from GitHub Actions..."
+    source "$EMSDK/emsdk_env.sh"
+# Check for local development environment
+elif [ -f "$PROJECT_DIR/../emsdk/emsdk_env.sh" ]; then
+    echo "[Local] Sourcing Emscripten environment from local installation..."
+    source "$PROJECT_DIR/../emsdk/emsdk_env.sh"
 else
-    echo "Error: emsdk_env.sh not found in $EMSDK_DIR"
+    echo "Error: emsdk_env.sh not found in any expected location"
     echo "Please make sure Emscripten is properly installed."
+    echo "Checked locations:"
+    echo "- $EMSDK/emsdk_env.sh"
+    echo "- $PROJECT_DIR/../emsdk/emsdk_env.sh"
     exit 1
 fi
 
