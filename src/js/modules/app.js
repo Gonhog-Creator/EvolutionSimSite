@@ -21,6 +21,11 @@ class App {
         this.selectionManager = selectionManager;
         this.temperatureManager = temperatureManager;
         
+        // Set app reference in selection manager
+        if (this.selectionManager) {
+            this.selectionManager.app = this;
+        }
+        
         // Setup temperature adjustment handler
         this.selectionManager.onTemperatureAdjust = (x, y, isDecrease = false) => {
             if (this.isAdmin) {
@@ -42,9 +47,9 @@ class App {
         this.diagChannel = null;
         this.setupDiagnostics();
         
-        // Bind keyboard events
+        // Bind keyboard events - use capture phase to ensure we get the event first
         this.handleKeyDown = this.handleKeyDown.bind(this);
-        document.addEventListener('keydown', this.handleKeyDown);
+        document.addEventListener('keydown', this.handleKeyDown, true); // true = use capture phase
         
         // Initialize render method
         this.render = this.render.bind(this);
@@ -773,223 +778,201 @@ class App {
                 logger.log('Initializing simulation...');
                 initFunc();
                 this.isRunning = true;
-                
-                // Update UI if elements exist
-                const { startBtn, pauseBtn } = this.elements;
-                if (startBtn) startBtn.disabled = true;
-                if (pauseBtn) pauseBtn.disabled = false;
-                
-                logger.log('Simulation started successfully', 'success');
-                return;
-            }
-            
-            // If no initialization function was found, set up our own render loop
-            logger.log('No initialization function found, setting up render loop...');
-            
-            // Set simulation state
             this.isRunning = true;
-            this.isPaused = false;
-            this.lastRenderTime = null;
-            
-            // Start the render loop
-            this.currentMainLoop = requestAnimationFrame(this.render.bind(this));
-            
+
             // Update UI if elements exist
-            const { startBtn, pauseBtn } = this.uiManager.elements || {};
+            const { startBtn, pauseBtn } = this.elements;
             if (startBtn) startBtn.disabled = true;
             if (pauseBtn) pauseBtn.disabled = false;
-            
-            logger.log('Render loop started');
-        } catch (error) {
-            logger.error('Error starting simulation:', error);
-            throw error;
-        }
-    }
 
-    /**
-     * Toggles the pause state of the simulation
-     */
-    togglePause() {
-        if (!this.isRunning) return;
-        
-        this.isPaused = !this.isPaused;
-        
-        if (this.isPaused) {
-            // Pause the simulation
-            if (window.Module) {
-                if (typeof window.Module._emscripten_pause_main_loop === 'function') {
-                    window.Module._emscripten_pause_main_loop();
-                } else if (window.Module.asm && window.Module.asm._emscripten_pause_main_loop) {
-                    window.Module.asm._emscripten_pause_main_loop();
+            logger.log('Simulation started successfully', 'success');
+            return;
+        }
+
+        // If no initialization function was found, set up our own render loop
+        logger.log('No initialization function found, setting up render loop...');
+
+        // Set simulation state
+        this.isRunning = true;
+        this.isPaused = false;
+        this.lastRenderTime = null;
+
+        // Show debug overlay when game starts
+        if (this.uiManager) {
+            this.uiManager.showDebugOverlay();
+        }
+
+        // Start the render loop
+        this.currentMainLoop = requestAnimationFrame(this.render.bind(this));
+
+        // Update UI if elements exist
+        const { startBtn, pauseBtn } = this.uiManager.elements || {};
+        if (startBtn) startBtn.disabled = true;
+        if (pauseBtn) pauseBtn.disabled = false;
+
+        logger.log('Render loop started');
+    } catch (error) {
+        logger.error('Error starting simulation:', error);
+        throw error;
+    }
+}
+
+/**
+ * Toggles the pause state of the simulation
+ * @param {boolean} showMenu - Whether to show the pause menu (default: false)
+ */
+togglePause(showMenu = false) {
+    if (!this.isRunning) return;
+
+    // If already paused, handle menu toggling or resume
+    if (this.isPaused) {
+        if (showMenu) {
+            // ESC key - toggle menu visibility
+            if (this.uiManager) {
+                if (this.uiManager.elements.pauseMenu && 
+                    !this.uiManager.elements.pauseMenu.classList.contains('hidden')) {
+                    // If menu is visible, hide it but keep paused
+                    this.uiManager.hidePauseMenu();
+                } else {
+                    // If menu is hidden, show it
+                    this.uiManager.showPauseMenu();
                 }
             }
-            
-            // Show pause menu using uiManager
-            this.uiManager.showPauseMenu();
-            
-            logger.log('Simulation paused');
         } else {
+            // Spacebar - resume the game
             this.resumeSimulation();
         }
+        return;
     }
 
-    /**
-     * Resumes the simulation from a paused state
-     */
-    resumeSimulation() {
+    // If not paused, pause the game
+    this.isPaused = true;
+
+    // Pause the simulation
+    if (this.isPaused) {
+        // Pause the simulation
         if (window.Module) {
-            if (typeof window.Module._emscripten_resume_main_loop === 'function') {
-                window.Module._emscripten_resume_main_loop();
-            } else if (window.Module.asm && window.Module.asm._emscripten_resume_main_loop) {
-                window.Module.asm._emscripten_resume_main_loop();
+            if (typeof window.Module._emscripten_pause_main_loop === 'function') {
+                window.Module._emscripten_pause_main_loop();
+            } else if (window.Module.asm && window.Module.asm._emscripten_pause_main_loop) {
+                window.Module.asm._emscripten_pause_main_loop();
             }
         }
-        
-        // Hide pause menu using uiManager
-        this.uiManager.hidePauseMenu();
-        
-        this.isPaused = false;
-        logger.log('Simulation resumed');
-    }
 
-    /**
-     * Handles the Resume button click in the pause menu
-     */
-    onResumeClick() {
+        // Show pause banner
+        if (this.uiManager) {
+            this.uiManager.showPauseBanner && this.uiManager.showPauseBanner();
+
+            // Show pause menu if requested (e.g., from ESC key)
+            if (showMenu && this.uiManager.showPauseMenu) {
+                this.uiManager.showPauseMenu();
+            }
+        }
+
+        logger.log('Simulation paused' + (showMenu ? ' (with menu)' : ''));
+    } else {
         this.resumeSimulation();
     }
+}
 
-    /**
-     * Handles the Save Game button click in the pause menu
-     */
-    /**
-     * Handles the Save & Quit button click in the pause menu
-     */
-    async onSaveAndQuitClick() {
-        logger.log('Save & Quit clicked');
-        
-        try {
-            // First save the game
-            await this.onSaveGameClick();
-            
-            // Small delay to show the save notification
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            // Then quit to menu
-            this.onQuitToMenuClick();
-        } catch (error) {
-            logger.error('Error during save & quit:', error);
-            this.uiManager.showNotification('Error saving game. Changes may not be saved.');
+/**
+ * Resumes the simulation from a paused state
+ */
+resumeSimulation() {
+    // Update state first
+    this.isPaused = false;
+    
+    // Resume the simulation loop if available
+    if (window.Module) {
+        if (typeof window.Module._emscripten_resume_main_loop === 'function') {
+            window.Module._emscripten_resume_main_loop();
+        } else if (window.Module.asm && window.Module.asm._emscripten_resume_main_loop) {
+            window.Module.asm._emscripten_resume_main_loop();
         }
     }
     
-    /**
-     * Handles the Save Game button click in the pause menu
-     */
-    onSaveGameClick() {
-        logger.log('Saving game...');
-        
-        // Check if we have a game state
-        if (!this.gameState) {
-            logger.error('No active game state to save');
-            this.uiManager.showNotification('Error: No active game to save');
-            return Promise.reject('No active game state');
-        }
-        
-        try {
-            // Create a simplified game state for saving
-            const gameState = {
-                turnCount: this.gameState.turnCount || 0,
-                // Include other game state properties as needed
-                ...this.gameState
-            };
-            
-            // Check if this is an existing game with a save ID
-            const saveId = this.gameState.saveId;
-            const saveName = this.gameState.saveName || `Game ${new Date().toLocaleString()}`;
-            
-            if (saveId) {
-                // Update existing save
-                const updatedSave = saveManager.saveGame(gameState, saveName, saveId);
-                if (updatedSave) {
-                    logger.log('Game updated successfully:', updatedSave);
-                    this.uiManager.showNotification('Game saved successfully!');
-                    return Promise.resolve(updatedSave);
-                } else {
-                    throw new Error('Failed to update save');
-                }
-            } else {
-                // Create a new save with the current game name or a default name
-                const newSave = saveManager.saveGame(gameState, saveName);
-                if (newSave) {
-                    // Store the save ID and name for future updates
-                    this.gameState.saveId = newSave.id;
-                    this.gameState.saveName = saveName; // Ensure name is stored for future saves
-                    logger.log('New game saved:', newSave);
-                    this.uiManager.showNotification('New game saved successfully!');
-                    return Promise.resolve(newSave);
-                } else {
-                    throw new Error('Failed to create new save');
-                }
-            }
-        } catch (error) {
-            logger.error('Error saving game:', error);
-            this.uiManager.showNotification('Error saving game: ' + (error.message || 'Unknown error'));
-            return Promise.reject(error);
-        }
+    // Hide pause UI elements
+    if (this.uiManager) {
+        this.uiManager.hidePauseBanner && this.uiManager.hidePauseBanner();
+        this.uiManager.hidePauseMenu && this.uiManager.hidePauseMenu();
     }
     
-    // Notification functionality has been moved to UIManager
-    // Use this.uiManager.showNotification() instead
-    
-    async onQuitToMenuClick() {
-        try {
-            logger.log('Quitting to main menu...');
-            
-            // Stop any running simulation
-            if (this.currentMainLoop) {
-                window.cancelAnimationFrame(this.currentMainLoop);
-                this.currentMainLoop = null;
-            }
-            
-            // Reset game state
-            this.isRunning = false;
-            this.isPaused = false;
-            
-            // Show main menu and hide game container using uiManager
-            this.uiManager.showMainMenu();
-            
-            // Hide the game container
-            if (this.uiManager.elements.gameContainer) {
-                this.uiManager.elements.gameContainer.classList.add('hidden');
-            }
-            
-            // Reset states
-            this.isRunning = false;
-            this.isPaused = false;
-            
-            logger.log('Successfully returned to main menu');
-        } catch (error) {
-            logger.error('Error during quit to menu:', error);
-            throw error;
+    // Force update the hovered cell and tooltip
+    if (this.selectionManager) {
+        this.selectionManager.forceUpdateHoveredCell();
+        
+        // Also dispatch a mouse move event for any other listeners
+        if (this.selectionManager.lastMouseEvent && this.selectionManager.canvas) {
+            const newEvent = new MouseEvent('mousemove', {
+                clientX: this.selectionManager.lastMouseEvent.clientX,
+                clientY: this.selectionManager.lastMouseEvent.clientY,
+                bubbles: true,
+                cancelable: true,
+                view: window
+            });
+            this.selectionManager.canvas.dispatchEvent(newEvent);
         }
     }
 
-    /**
-     * Initializes the simulation grid based on the canvas size
-     */
-    async initializeSimulationGrid() {
-        logger.log('Initializing simulation grid...');
+    logger.log('Simulation resumed');
+}
+
+/**
+ * Forces a mouse move event to update the selected cell
+ TODO: fix mouse update for closing esc menu, currently only forces update for pause state
+ */
+forceMouseMoveUpdate() {
+    if (!this.selectionManager || !this.selectionManager.lastMouseEvent) return;
+    
+    // Get the last mouse event and canvas
+    const lastEvent = this.selectionManager.lastMouseEvent;
+    const canvas = this.selectionManager.canvas;
+    if (!canvas) return;
+    
+    // Calculate the cell coordinates directly
+    const rect = canvas.getBoundingClientRect();
+    const x = lastEvent.clientX - rect.left;
+    const y = lastEvent.clientY - rect.top;
+    const cellX = Math.floor(x / this.selectionManager.cellSize);
+    const cellY = Math.floor(y / this.selectionManager.cellSize);
+    
+    // Force update the hovered cell
+    this.selectionManager.hoveredCell = { x: cellX, y: cellY };
+    
+    // If there's a temperature to show, update the tooltip
+    if (this.temperatureManager) {
+        const temp = this.temperatureManager.getTemperature(cellX, cellY);
+        if (temp !== undefined) {
+            this.selectionManager.updateTooltip(temp);
+        }
+    }
+    
+    // Also dispatch a mouse move event for any other listeners
+    const newEvent = new MouseEvent('mousemove', {
+        clientX: lastEvent.clientX,
+        clientY: lastEvent.clientY,
+        bubbles: true,
+        cancelable: true,
+        view: window
+    });
+    
+    // Dispatch the event on the canvas
+    canvas.dispatchEvent(newEvent);
+}
+
+/**
+ * Initializes the simulation grid based on the canvas size
+ */
+async initializeSimulationGrid() {
+    try {
+        const canvas = document.querySelector('canvas');
+        if (!canvas) {
+            throw new Error('Canvas element not found');
+        }
         
-        try {
-            const canvas = document.querySelector('canvas');
-            if (!canvas) {
-                throw new Error('Canvas element not found');
-            }
-            
-            // Set canvas to full window size
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+        // Set canvas to full window size
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
             
             // Define grid properties
             const cellSize = 20; // Size of each grid cell in pixels
@@ -1060,10 +1043,100 @@ class App {
     }
 
     /**
-     * Handles keyboard input
-     * @param {KeyboardEvent} event - The keyboard event
+     * Handles the Resume button click from the pause menu
      */
-    handleKeyDown(event) {
+    onResumeClick() {
+        logger.log('Resume clicked');
+        this.resumeSimulation();
+    }
+
+    /**
+     * Handles the Save Game button click from the pause menu
+     */
+    onSaveGameClick() {
+        logger.log('Save Game clicked');
+        // TODO: Implement save game functionality
+        this.uiManager.showNotification('Game saved successfully!');
+        
+        // Pause the game
+        this.isRunning = false;
+        this.isPaused = false;
+        
+        // Hide game UI elements
+        if (this.uiManager) {
+            this.uiManager.hidePauseBanner();
+            this.uiManager.hidePauseMenu();
+            this.uiManager.hideDebugOverlay();
+            
+            // Show main menu
+            this.uiManager.showMainMenu();
+        }
+        
+        // Hide the selection tooltip if it's visible
+        if (this.selectionManager) {
+            this.selectionManager.hideTooltip();
+        }
+        
+        // Stop any running animation frame
+        if (this.currentMainLoop) {
+            cancelAnimationFrame(this.currentMainLoop);
+            this.currentMainLoop = null;
+        }
+        
+        logger.log('Successfully returned to main menu');
+}
+
+/**
+ * Handles keyboard input
+ * @param {KeyboardEvent} event - The keyboard event
+ */
+handleKeyDown(event) {
+        // Only handle space and escape if the game is running
+        if (!this.isRunning) return;
+        
+        // Toggle pause with spacebar (without menu)
+        if (event.code === 'Space') {
+            this.togglePause(false); // Don't show menu, just show banner
+            event.preventDefault(); // Prevent scrolling the page
+            event.stopPropagation(); // Stop event bubbling
+            return;
+        }
+        
+        // Toggle pause menu with Escape key - handle this first
+        if (event.key === 'Escape') {
+            // Only handle this if we're in the game and not in any modal
+            if (this.isRunning && this.uiManager) {
+                const isAnyModalVisible = 
+                    (this.uiManager.elements.newGameModal && !this.uiManager.elements.newGameModal.classList.contains('hidden')) ||
+                    (this.uiManager.elements.saveManager && !this.uiManager.elements.saveManager.classList.contains('hidden'));
+                
+                if (!isAnyModalVisible) {
+                    if (this.isPaused) {
+                        // If already paused, just toggle the menu visibility
+                        if (this.uiManager.elements.pauseMenu) {
+                            if (!this.uiManager.elements.pauseMenu.classList.contains('hidden')) {
+                                // Menu is visible - hide it and resume the game
+                                this.uiManager.hidePauseMenu();
+                                this.resumeSimulation();
+                            } else {
+                                // Menu is hidden - show it and ensure game is paused
+                                this.uiManager.showPauseMenu();
+                                if (!this.isPaused) {
+                                    this.togglePause(true);
+                                }
+                            }
+                        }
+                    } else {
+                        // If not paused, pause and show menu
+                        this.togglePause(true);
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                }
+            }
+        }
+        
         // Toggle temperature view with 't' key
         if (event.key.toLowerCase() === 't') {
             this.showTemperature = !this.showTemperature;

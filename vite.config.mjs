@@ -1,10 +1,9 @@
 import { defineConfig } from 'vite';
-import { resolve } from 'path';
 import wasm from 'vite-plugin-wasm';
 import topLevelAwait from 'vite-plugin-top-level-await';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-import fs from 'fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import fs from 'node:fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -12,17 +11,18 @@ const __dirname = dirname(__filename);
 // Add .js extension for ESM
 const extensions = ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.wasm'];
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   root: 'src',
-  base: '/',
+  base: process.env.NODE_ENV === 'production' ? '/EvolutionSimSite/' : '/',
   publicDir: 'public',
   assetsInclude: ['**/*.wasm'],
   resolve: {
     alias: {
-      '@wasm': '/src/assets/wasm',
+      '@': resolve(__dirname, 'src'),
+      '@wasm': '/src/assets/wasm'
     },
+    extensions
   },
-  assetsInclude: ['**/*.wasm'],
   
   // Configure the development server
   server: {
@@ -38,7 +38,6 @@ export default defineConfig({
       'Cross-Origin-Resource-Policy': 'cross-origin',
       'Content-Security-Policy': "default-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' 'unsafe-inline' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' 'unsafe-inline' data: blob:;"
     },
-    cors: true,
     hmr: {
       port: 3000 // Make sure HMR also uses port 3000
     },
@@ -75,46 +74,22 @@ export default defineConfig({
   // Configure how WebAssembly is handled
   optimizeDeps: {
     // This is necessary because the .wasm file is loaded dynamically
-    exclude: ['@emscripten/.*'],
+    exclude: ['**/*.wasm'],
     esbuildOptions: {
       // Enable support for top-level await
       target: 'esnext',
-      // This is needed for WebAssembly
-      wasm: true,
-      loader: {
-        '.wasm': 'binary'
-      },
-      // They are handled by Vite's wasm plugin instead
-    }
-  },
-  
-  // Add file extensions to resolve
-  resolve: {
-    extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.wasm'],
-    alias: {
-      // Alias for WASM files
-      '/wasm': resolve(__dirname, 'src/public/wasm')
+      // WebAssembly is handled by Vite's wasm plugin
+      supported: {
+        'top-level-await': true
+      }
     }
   },
   
   plugins: [
-    // Configure the wasm plugin with the correct options
-    wasm({
-      targetEnv: 'browser',
-      syncInit: false,
-      // Enable WebAssembly streaming compilation
-      wasmImport: true,
-      // Disable WebAssembly threads for now as they require additional setup
-      wasmThreads: false
-    }),
-    topLevelAwait({
-      // Enable top-level await in all modules
-      promiseExportName: '__tla',
-      promiseImportName: i => `__tla_${i}`
-    })
+    wasm(),
+    topLevelAwait()
   ],
   
-  // Configure build settings
   build: {
     target: 'es2020',
     outDir: '../dist',
@@ -126,7 +101,6 @@ export default defineConfig({
         main: resolve(__dirname, 'src/index.html')
       },
       output: {
-        // Configure output file names
         assetFileNames: (assetInfo) => {
           if (assetInfo.name.endsWith('.wasm')) {
             return 'assets/[name]-[hash][extname]';
@@ -136,13 +110,11 @@ export default defineConfig({
           }
           return 'assets/[name]-[hash][extname]';
         },
-        // This is important for WebAssembly
         format: 'es',
         chunkFileNames: 'js/[name]-[hash].js',
         entryFileNames: 'js/[name]-[hash].js',
-        // This is needed for WebAssembly
         experimentalMinChunkSize: 65536
       }
     }
   }
-});
+}));

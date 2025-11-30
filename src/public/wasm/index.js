@@ -1998,7 +1998,6 @@ for (const prop of Object.keys(Module)) {
 }
 
 // Export using a UMD style export, or ES6 exports if selected
-// Export as a global variable
 if (typeof window !== "undefined") {
   window.createEmscriptenModule = createEmscriptenModule;
 }

@@ -39,6 +39,9 @@ jobs:
           # Set environment variables for the build
           echo "EMSDK=${EMSDK}" >> $GITHUB_ENV
           echo "PATH=${EMSDK}:${EMSDK}/upstream/emscripten:${PATH}" >> $GITHUB_ENV
+          # Set NODE_ENV to production for the build
+          export NODE_ENV=production
+          
           # Run the build
           npm run build
           

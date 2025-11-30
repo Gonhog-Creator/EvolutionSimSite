@@ -1,31 +1,32 @@
-const { execSync } = require('child_process');
-const path = require('path');
-const fs = require('fs');
+import { execSync } from 'child_process';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { chmodSync, existsSync } from 'fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const isWindows = process.platform === 'win32';
 const scriptName = isWindows ? 'build_wasm.cmd' : 'build_wasm.sh';
-const scriptPath = path.join(__dirname, '..', 'src', 'scripts', scriptName);
+const scriptPath = join(__dirname, '..', 'src', 'scripts', scriptName);
 
 // Make the script executable on Unix-like systems
-if (!isWindows) {
+if (!isWindows && existsSync(scriptPath)) {
   try {
-    fs.chmodSync(scriptPath, '755');
+    chmodSync(scriptPath, 0o755);
   } catch (e) {
-    console.log('Warning: Could not set executable permissions on build script');
+    console.warn('⚠️  Could not set executable permissions on build script');
   }
 }
 
 try {
-  console.log(`Running ${scriptName}...`);
+  console.log(`🚀 Running ${scriptName}...`);
   execSync(`"${scriptPath}"`, { 
-    stdio: 'inherit', 
-    shell: true,
-    env: {
-      ...process.env,
-      // Add any additional environment variables needed for the build
-    }
+    stdio: 'inherit',
+    cwd: join(__dirname, '..')
   });
-} catch (e) {
-  console.log('Skipping WebAssembly build:', e.message);
-  process.exit(0); // Exit with success to continue the build
+  console.log('✅ WASM build completed successfully');
+} catch (error) {
+  console.error('❌ Error building WASM:', error.message);
+  process.exit(1);
 }

@@ -13,6 +13,7 @@ export class SelectionManager {
         this.isAdmin = false; // Track admin mode state
         this.tempAdjustDirection = 1; // 1 for increase, -1 for decrease
         this.dragButton = null; // Track which button started the drag
+        this.app = null; // Will be set by the App class
     }
 
     /**
@@ -109,46 +110,30 @@ export class SelectionManager {
      * Handle mouse movement to update tooltip and handle drag operations
      * @param {MouseEvent} event - Mouse move event
      */
-    handleMouseMove(event) {
+    handleMouseMove(event, forceUpdate = false) {
         if (!this.canvas) return;
-        
-        const isRightButtonDown = (event.buttons & 2) === 2; // Check if right button is currently down
-        
-        // If we have a pending right-click and the mouse moves, clear it
-        if (this._pendingRightClick) {
-            // If right button is no longer down, clean up
-            if (!isRightButtonDown) {
-                clearTimeout(this._pendingRightClick);
-                this._pendingRightClick = null;
-                
-                // If we were dragging, clean up the drag state
-                if (this.isDragging && this.dragButton === 2) {
-                    this.cleanupDragState();
-                }
-            } else {
-                // Right button is still down, just clear the timeout but keep the pending state
-                clearTimeout(this._pendingRightClick);
-                this._pendingRightClick = null;
-            }
+
+        // Store the mouse event for tooltip positioning
+        this.lastMouseEvent = event;
+
+        // Don't update hover state if the game is paused (unless forced)
+        if (this.app && this.app.isPaused && !forceUpdate) {
+            this.hideTooltip();
+            return;
         }
-        
+
         const rect = this.canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
-        
+
         // Update hovered cell
         const cellX = Math.floor(x / this.cellSize);
         const cellY = Math.floor(y / this.cellSize);
-        
-        // Only update if the cell changed
-        if (!this.hoveredCell || this.hoveredCell.x !== cellX || this.hoveredCell.y !== cellY) {
+        const cellChanged = !this.hoveredCell || this.hoveredCell.x !== cellX || this.hoveredCell.y !== cellY;
+
+        if (cellChanged) {
             this.hoveredCell = { x: cellX, y: cellY };
-            
-            // Update tooltip position if active
-            if (this.tooltip && this.tooltip.isVisible) {
-                this.updateTooltipPosition(event);
-            }
-            
+
             // Handle temperature adjustment if in admin mode and dragging
             if (this.isDragging && this.onTemperatureAdjust && this.isAdmin) {
                 const cells = this.getBrushCells(this.hoveredCell.x, this.hoveredCell.y);
@@ -156,6 +141,16 @@ export class SelectionManager {
                     this.onTemperatureAdjust(cell.x, cell.y, this.tempAdjustDirection === -1);
                 });
             }
+        }
+        
+        // Always update tooltip position if it's visible
+        if (this.tooltip && this.tooltip.isVisible && this.lastMouseEvent) {
+            this.updateTooltipPosition(this.lastMouseEvent);
+        }
+        
+        // Always update tooltip position if it's visible
+        if (this.tooltip && this.tooltip.isVisible) {
+            this.updateTooltipPosition(event);
         }
     }
     
@@ -439,14 +434,89 @@ export class SelectionManager {
      * Update the tooltip with temperature information
      * @param {number} temperature - The temperature to display
      */
+    /**
+     * Update the tooltip with temperature information
+     * @param {number} temperature - The temperature to display
+     */
     updateTooltip(temperature) {
-        if (!this.hoveredCell) {
-            this.tooltip.style.visibility = 'hidden';
+        if (!this.hoveredCell || !this.tooltip) {
+            if (this.tooltip) {
+                this.hideTooltip();
+            }
+            return;
+        }
+        
+        // Don't show tooltip if the game is paused
+        if (this.app && this.app.isPaused) {
+            this.hideTooltip();
             return;
         }
         
         this.tooltip.textContent = `${temperature.toFixed(1)}°C`;
+        this.tooltip.style.display = ''; // Reset display property
         this.tooltip.style.visibility = 'visible';
+        this.tooltip.isVisible = true;
+        
+        // Update position based on current mouse position
+        if (this.lastMouseEvent) {
+            this.updateTooltipPosition(this.lastMouseEvent);
+        }
+    }
+    
+    /**
+     * Update the tooltip position to follow the mouse
+     * @param {MouseEvent} event - The mouse move event
+     */
+    updateTooltipPosition(event) {
+        if (!this.tooltip) return;
+        
+        // Store the last mouse event for position updates
+        this.lastMouseEvent = event;
+        
+        // Position the tooltip slightly offset from the mouse cursor
+        const offsetX = 10;
+        const offsetY = 10;
+        
+        this.tooltip.style.left = `${event.clientX + offsetX}px`;
+        this.tooltip.style.top = `${event.clientY + offsetY}px`;
+    }
+    
+    /**
+     * Hides the tooltip
+     */
+    hideTooltip() {
+        if (this.tooltip) {
+            this.tooltip.style.visibility = 'hidden';
+            this.tooltip.isVisible = false;
+            this.tooltip.style.display = 'none'; // Ensure it's completely removed from layout
+        }
+    }
+    
+    /**
+     * Forces an update of the hovered cell based on the last mouse position
+     */
+    forceUpdateHoveredCell() {
+        if (!this.canvas || !this.lastMouseEvent) return;
+        
+        const rect = this.canvas.getBoundingClientRect();
+        const x = this.lastMouseEvent.clientX - rect.left;
+        const y = this.lastMouseEvent.clientY - rect.top;
+        const cellX = Math.floor(x / this.cellSize);
+        const cellY = Math.floor(y / this.cellSize);
+        
+        // Update the hovered cell
+        this.hoveredCell = { x: cellX, y: cellY };
+        
+        // If there's a temperature to show, update the tooltip
+        if (this.app?.temperatureManager) {
+            const temp = this.app.temperatureManager.getTemperature(cellX, cellY);
+            if (temp !== undefined) {
+                this.updateTooltip(temp);
+            }
+        }
+        
+        // Return the cell coordinates in case they're needed
+        return { x: cellX, y: cellY };
     }
     
     /**

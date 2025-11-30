@@ -43,30 +43,54 @@ export class UIManager {
         this.setupButtonListeners();
         this.createDebugOverlay();
         logger.log('UI Manager initialized');
+        
+        // Initially hide the debug overlay until the game starts
+        this.hideDebugOverlay();
     }
     
     /**
      * Creates the debug overlay element
      */
     createDebugOverlay() {
-        this.debugOverlay = document.createElement('div');
-        this.debugOverlay.id = 'debug-overlay';
-        this.debugOverlay.style.position = 'fixed';
-        this.debugOverlay.style.top = '10px';
-        this.debugOverlay.style.left = '10px';
-        this.debugOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-        this.debugOverlay.style.color = '#fff';
-        this.debugOverlay.style.padding = '8px 12px';
-        this.debugOverlay.style.borderRadius = '4px';
-        this.debugOverlay.style.fontFamily = 'monospace';
-        this.debugOverlay.style.fontSize = '14px';
-        this.debugOverlay.style.zIndex = '1000';
-        this.debugOverlay.style.pointerEvents = 'none';
-        this.debugOverlay.style.userSelect = 'none';
-        this.debugOverlay.style.lineHeight = '1.5';
-        this.debugOverlay.innerHTML = 'FPS: 0\nTime: 0.0s\nTemp: N/A';
-        
-        document.body.appendChild(this.debugOverlay);
+        // Only create the debug overlay if it doesn't exist
+        if (!this.debugOverlay) {
+            this.debugOverlay = document.createElement('div');
+            this.debugOverlay.id = 'debug-overlay';
+            this.debugOverlay.style.position = 'fixed';
+            this.debugOverlay.style.top = '10px';
+            this.debugOverlay.style.left = '10px';
+            this.debugOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            this.debugOverlay.style.color = '#fff';
+            this.debugOverlay.style.padding = '8px 12px';
+            this.debugOverlay.style.borderRadius = '4px';
+            this.debugOverlay.style.fontFamily = 'monospace';
+            this.debugOverlay.style.fontSize = '14px';
+            this.debugOverlay.style.zIndex = '1000';
+            this.debugOverlay.style.pointerEvents = 'none';
+            this.debugOverlay.style.userSelect = 'none';
+            this.debugOverlay.style.lineHeight = '1.5';
+            this.debugOverlay.innerHTML = 'FPS: 0\nTime: 0.0s\nTemp: N/A';
+            
+            document.body.appendChild(this.debugOverlay);
+        }
+    }
+    
+    /**
+     * Shows the debug overlay
+     */
+    showDebugOverlay() {
+        if (this.debugOverlay) {
+            this.debugOverlay.style.display = 'block';
+        }
+    }
+    
+    /**
+     * Hides the debug overlay
+     */
+    hideDebugOverlay() {
+        if (this.debugOverlay) {
+            this.debugOverlay.style.display = 'none';
+        }
     }
     
     /**
@@ -75,7 +99,8 @@ export class UIManager {
      * @param {Object} cellInfo - Information about the selected cell
      */
     updateDebugOverlay(time, cellInfo = null) {
-        if (!this.debugOverlay) return;
+        // Don't update if the overlay is hidden or doesn't exist
+        if (!this.debugOverlay || this.debugOverlay.style.display === 'none') return;
         
         // Calculate FPS
         this.frames++;
@@ -114,6 +139,7 @@ export class UIManager {
             loadGameBtn: document.getElementById('load-game-btn'),
             settingsBtn: document.getElementById('settings-btn'),
             pauseMenu: document.getElementById('pause-menu'),
+            pauseBanner: document.getElementById('pause-banner'),
             resumeBtn: document.getElementById('resume-btn'),
             saveGameBtn: document.getElementById('save-game-btn'),
             saveQuitBtn: document.getElementById('save-quit-btn'),
@@ -224,13 +250,7 @@ export class UIManager {
             quitToMenuBtn.addEventListener('click', () => this.app.onQuitToMenuClick());
         }
         
-        // Add keyboard event listener for ESC key
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && this.app.isRunning) {
-                this.app.togglePause();
-                event.preventDefault(); // Prevent default ESC behavior
-            }
-        });
+        // Note: ESC key handling is now in App.handleKeyDown
     }
 
     // UI State Management
@@ -254,12 +274,43 @@ export class UIManager {
             console.error('Available elements in the DOM with IDs:', 
                 Array.from(document.querySelectorAll('[id]')).map(el => el.id));
         }
+        
+        // Show pause banner
+        if (this.elements.pauseBanner) {
+            this.elements.pauseBanner.classList.remove('hidden');
+        }
+        
+        // Hide the tooltip when pausing
+        if (this.app && this.app.selectionManager) {
+            this.app.selectionManager.hideTooltip();
+        }
     }
 
     hidePauseMenu() {
+        // Hide the pause menu
         if (this.elements.pauseMenu) {
             this.elements.pauseMenu.style.display = 'none';
             this.elements.pauseMenu.classList.add('hidden');
+        }
+        // Also hide the pause banner when menu is closed
+        if (this.elements.pauseBanner) {
+            this.elements.pauseBanner.classList.add('hidden');
+        }
+    }
+    
+    /* Shows the pause banner */
+    showPauseBanner() {
+        if (this.elements.pauseBanner) {
+            this.elements.pauseBanner.classList.remove('hidden');
+        }
+    }
+    
+    /**
+     * Hides the pause banner
+     */
+    hidePauseBanner() {
+        if (this.elements.pauseBanner) {
+            this.elements.pauseBanner.classList.add('hidden');
         }
     }
 

@@ -3,30 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A WebAssembly-based Evolution Simulator">
     <title>Evolution Simulator</title>
     <link rel="stylesheet" href="/css/main.css">
     <link rel="stylesheet" href="/css/game.css">
-    <script type="module" src="/js/main.js"></script>
+    <script type="module" src="./js/main.js"></script>
 </head>
 <body>
     <!-- Game Container -->
     <div id="game-container" class="hidden">
-        <canvas id="canvas" width="800" height="600"></canvas>
+        <div id="pause-banner" class="pause-banner hidden">GAME PAUSED</div>
+        <canvas id="canvas" width="800" height="600" tabindex="0" aria-label="Evolution Simulator Canvas"></canvas>
         
         <!-- Pause Menu Overlay -->
-        <div id="pause-menu" class="menu-overlay hidden">
+        <div id="pause-menu" class="menu-overlay hidden" role="dialog" aria-labelledby="pause-menu-title">
             <div class="menu-content">
-                <h2>PAUSED</h2>
+                <h2 id="pause-menu-title">PAUSED</h2>
                 <div class="menu-buttons">
-                    <button id="resume-btn" class="menu-button">RESUME</button>
-                    <button id="save-game-btn" class="menu-button">SAVE GAME</button>
-                    <button id="quit-to-menu-btn" class="menu-button">QUIT TO MENU</button>
-                    <button id="settings-menu-btn" class="menu-button">SETTINGS</button>
-                    <button id="save-quit-btn" class="menu-button">SAVE & QUIT</button>
+                    <button id="resume-btn" class="menu-button" aria-label="Resume game">
+                        RESUME
+                    </button>
+                    <button id="save-game-btn" class="menu-button" aria-label="Save game">
+                        SAVE GAME
+                    </button>
+                    <button id="quit-to-menu-btn" class="menu-button" aria-label="Quit to main menu">
+                        QUIT TO MENU
+                    </button>
+                    <button id="settings-menu-btn" class="menu-button" aria-label="Open settings">
+                        SETTINGS
+                    </button>
+                    <button id="save-quit-btn" class="menu-button" aria-label="Save and quit">
+                        SAVE & QUIT
+                    </button>
                 </div>
             </div>
         </div>
+        
+        <!-- Loading Indicator -->
+        <div id="loading-indicator" class="loading-overlay">
+            <div class="loading-spinner"></div>
+            <div id="loading-text">Loading WebAssembly...</div>
+            <div id="loading-progress">0%</div>
+        </div>
+        
+        <!-- Error Message -->
+        <div id="error-message" class="error-overlay hidden" role="alert">
+            <h3>Error Loading Application</h3>
+            <p id="error-details">An unknown error occurred while loading the application.</p>
+            <button id="reload-btn" class="menu-button">Reload Page</button>
+        </div>
     </div>
+    
+    <!-- Add a noscript message for users with JavaScript disabled -->
+    <noscript>
+        <div class="noscript-message">
+            <h2>JavaScript is required</h2>
+            <p>This application requires JavaScript to function. Please enable JavaScript in your browser settings.</p>
+        </div>
+    </noscript>
 
     <!-- Main Menu -->
     <div id="main-menu" class="menu-container">
