@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evolution Simulator</title>
+  <script type="module" crossorigin src="/EvolutionSimSite/js/index-DLCz-7XN.js"></script>
+  <link rel="stylesheet" crossorigin href="/EvolutionSimSite/assets/index-CYDLzTlV.css">
+</head>
+<body>
+    <!-- Game Container -->
+    <div id="game-container" class="hidden">
+        <canvas id="canvas" width="800" height="600"></canvas>
+        
+        <!-- Pause Menu Overlay -->
+        <div id="pause-menu" class="menu-overlay hidden">
+            <div class="menu-content">
+                <h2>PAUSED</h2>
+                <div class="menu-buttons">
+                    <button id="resume-btn" class="menu-button">RESUME</button>
+                    <button id="save-game-btn" class="menu-button">SAVE GAME</button>
+                    <button id="quit-to-menu-btn" class="menu-button">QUIT TO MENU</button>
+                    <button id="settings-menu-btn" class="menu-button">SETTINGS</button>
+                    <button id="save-quit-btn" class="menu-button">SAVE & QUIT</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Menu -->
+    <div id="main-menu" class="menu-container">
+        <div class="menu-content">
+            <h1>EVOLUTION SIMULATOR</h1>
+            <div class="menu-buttons">
+                <button id="new-game-btn" class="menu-button">NEW GAME</button>
+                <button id="load-game-btn" class="menu-button">LOAD GAME</button>
+                <button id="settings-btn" class="menu-button">SETTINGS</button>
+            </div>
+            <div class="version">Version 1.0.0</div>
+        </div>
+    </div>
+
+    <!-- New Game Modal -->
+    <div id="new-game-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>New Game</h2>
+                <button class="close-btn" id="close-new-game">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="save-name">Save Name</label>
+                    <input type="text" id="save-name" class="form-control" placeholder="Enter a name for your game" maxlength="50">
+                    <div class="form-hint">Maximum 50 characters</div>
+                </div>
+                <div class="form-actions">
+                    <button id="cancel-new-game" class="btn btn-secondary">Cancel</button>
+                    <button id="confirm-new-game" class="btn btn-primary">Create Game</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Manager Modal -->
+    <div id="save-manager-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Saved Games</h2>
+                <button class="close-btn" id="close-save-manager">&times;</button>
+            </div>
+            <div class="saves-list" id="saves-list">
+                <div class="no-saves">No saved games found</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Confirm Deletion</h2>
+                <button class="close-btn" id="close-confirmation">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmation-message">Are you sure you want to delete this save?</p>
+                <div class="form-actions">
+                    <button id="cancel-delete" class="btn btn-secondary">Cancel</button>
+                    <button id="confirm-delete" class="btn btn-danger">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <!-- WebAssembly Module Configuration -->
+    <script>
+        // Global Module object for Emscripten
+        var Module = typeof Module !== 'undefined' ? Module : {};
+        
+        // Configure the Emscripten Module
+        Module = {
+            // Print functions for debugging
+            print: function(text) {
+                console.log('WASM:', text);
+            },
+            printErr: function(text) {
+                console.error('WASM Error:', text);
+            },
+            
+            // Canvas setup
+            canvas: (function() {
+                var canvas = document.getElementById('canvas');
+                if (!canvas) {
+                    console.warn('Canvas element not found, creating one');
+                    canvas = document.createElement('canvas');
+                    canvas.id = 'canvas';
+                    document.body.appendChild(canvas);
+                }
+                return canvas;
+            })(),
+            
+            // Called when the module is fully initialized
+            onRuntimeInitialized: function() {
+                console.log('WebAssembly module initialized');
+                window.wasmReady = true;
+                
+                // Dispatch an event that the WASM module is ready
+                const event = new Event('wasm-ready');
+                window.dispatchEvent(event);
+                
+                // Notify the app that WebAssembly is ready
+                if (window.app && typeof window.app.onWasmReady === 'function') {
+                    window.app.onWasmReady();
+                }
+            },
+            
+            // Configure the wasm binary file location
+            locateFile: function(path, prefix) {
+                console.log('Loading file:', path);
+                if (path.endsWith('.wasm')) {
+                    return '/wasm/index.wasm';
+                }
+                return prefix + path;
+            },
+            
+            // Memory and table configuration
+            wasmMemory: new WebAssembly.Memory({ initial: 256, maximum: 65536 }),
+            wasmTable: new WebAssembly.Table({ initial: 0, maximum: 10000, element: 'anyfunc' }),
+            
+            // Disable WebAssembly streaming for better compatibility
+            instantiateWasm: function(imports, successCallback) {
+                console.log('Instantiating WebAssembly...');
+                
+                // Add any required imports
+                imports.env = imports.env || {};
+                
+                // Memory and table imports
+                imports.env.memory = Module.wasmMemory;
+                imports.env.table = Module.wasmTable;
+                
+                // Basic standard library functions
+                imports.env.abort = function() { console.error('WASM: abort called'); };
+                imports.env.emscripten_memcpy_big = function(dest, src, num) {
+                    new Uint8Array(Module.wasmMemory.buffer, dest, num).set(
+                        new Uint8Array(Module.wasmMemory.buffer, src, num)
+                    );
+                    return dest;
+                };
+                
+                // Load and instantiate the WebAssembly module
+                return fetch('/wasm/index.wasm')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Failed to load WebAssembly: ${response.status} ${response.statusText}`);
+                        }
+                        return response.arrayBuffer();
+                    })
+                    .then(bytes => WebAssembly.instantiate(bytes, imports))
+                    .then(result => {
+                        console.log('WebAssembly instantiated successfully');
+                        successCallback(result.instance, result.module);
+                        return result;
+                    })
+                    .catch(error => {
+                        console.error('Failed to instantiate WebAssembly:', error);
+                        throw error;
+                    });
+            }
+        };
+        
+        // Make Module available globally
+        window.Module = Module;
+        
+        // Function to load WebAssembly
+        function loadWasm() {
+            // Create a script element to load the WebAssembly JavaScript glue code
+            var script = document.createElement('script');
+            script.src = '/wasm/index.js';
+            script.async = true;
+            script.onload = function() {
+                console.log('WebAssembly script loaded');
+            };
+            script.onerror = function(error) {
+                console.error('Failed to load WebAssembly script:', error);
+                const event = new CustomEvent('wasm-error', { 
+                    detail: error || new Error('Failed to load WebAssembly script')
+                });
+                window.dispatchEvent(event);
+            };
+            
+            // Add the script to the document
+            document.body.appendChild(script);
+        }
+        
+        // Start loading WebAssembly when the page is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadWasm);
+        } else {
+            loadWasm();
+        }
+    </script>
+    
+    <!-- Main application script -->
+    <script>
+// The WebAssembly module will be initialized by the Emscripten-generated code
+// and will call the Module.onRuntimeInitialized callback when ready
+
+// Listen for the wasm-ready event that will be dispatched by the Module.onRuntimeInitialized
+window.addEventListener('wasm-ready', function() {
+    console.log('WebAssembly module is ready');
+    window.wasmReady = true;
+    
+    // If there's an app that's waiting for WASM to be ready, notify it
+    if (window.app && typeof window.app.onWasmReady === 'function') {
+        window.app.onWasmReady();
+    }
+});
+
+// Handle any WebAssembly loading errors
+window.addEventListener('wasm-error', function(event) {
+    console.error('WebAssembly error:', event.detail);
+});
+
+// Function to load the WebAssembly script as a module
+function loadWasmScript() {
+    return new Promise((resolve, reject) => {
+        // Create a module script element
+        const script = document.createElement('script');
+        script.type = 'module';
+        
+        // Create a blob URL for the transformed script
+        fetch('/wasm/index.js')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.text();
+            })
+            .then(scriptContent => {
+                // Transform the script content to handle import.meta
+                const transformedScript = scriptContent
+                    .replace(
+                        /import\.meta\.url/g,
+                        'new URL("", import.meta.url).href'
+                    );
+                
+                // Create a blob URL for the transformed script
+                const blob = new Blob([transformedScript], { type: 'application/javascript' });
+                const url = URL.createObjectURL(blob);
+                
+                // Set the script source to the blob URL
+                script.src = url;
+                
+                // Handle script load/error
+                script.onload = () => {
+                    console.log('WebAssembly module loaded and executed');
+                    URL.revokeObjectURL(url); // Clean up the blob URL
+                    resolve();
+                };
+                
+                script.onerror = (error) => {
+                    console.error('Failed to execute WebAssembly module:', error);
+                    URL.revokeObjectURL(url); // Clean up the blob URL
+                    reject(error);
+                };
+                
+                // Add the script to the document
+                (document.head || document.documentElement).appendChild(script);
+            })
+            .catch(error => {
+                console.error('Failed to load WebAssembly script:', error);
+                reject(error);
+            });
+    });
+}
+
+// Load WebAssembly and then the main app
+async function initializeApp() {
+    try {
+        await loadWasmScript();
+        
+        // Load the main application script
+        const appScript = document.createElement('script');
+        appScript.type = 'module';
+        appScript.src = '/js/main.js';
+        document.body.appendChild(appScript);
+        
+    } catch (error) {
+        console.error('Failed to initialize application:', error);
+        const statusEl = document.getElementById('status');
+        if (statusEl) {
+            statusEl.textContent = 'Error: Failed to initialize application. Please check the console for details.';
+            statusEl.style.color = 'red';
+        }
+    }
+}
+
+// Start the application
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    initializeApp();
+}
+</script>
+
+<!-- Load the main application as a module -->
+    <script>
+        // Global error handler to catch unhandled errors
+        window.addEventListener('error', function(event) {
+            console.error('Unhandled error:', event.error || event.message, 
+                         'at', event.filename, 
+                         'line', event.lineno, 
+                         'column', event.colno);
+            
+            // Prevent default browser error handling
+            event.preventDefault();
+            return true;
+        });
+
+        // Handle unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('Unhandled promise rejection:', event.reason);
+            event.preventDefault();
+        });
+    </script>
+</body>
+</html>
