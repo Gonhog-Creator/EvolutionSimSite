@@ -804,6 +804,24 @@
 
             // Set up broadcast channel for game communication
             const broadcastChannel = new BroadcastChannel('evolution-sim-diag');
+            
+            // Log channel creation
+            console.log('Broadcast channel created with name:', 'evolution-sim-diag');
+            
+            // Log when the channel is opened
+            broadcastChannel.onmessage = (event) => {
+                console.log('Received message on channel:', event.data);
+                lastMessageTime = performance.now();
+                if (!state.isConnected) {
+                    state.isConnected = true;
+                    updateConnectionStatus(true);
+                }
+                
+                const { type, data } = event.data;
+                if (type === 'log') {
+                    logToConsole(data.message, data.type || 'info');
+                }
+            };
             let connectionCheckInterval;
             let lastMessageTime = 0;
             const CONNECTION_TIMEOUT = 3000; // 3 seconds without messages = disconnected
@@ -1054,6 +1072,20 @@
                 // Add clear console button handler
                 if (elements.clearConsole) {
                     elements.clearConsole.addEventListener('click', clearConsole);
+                }
+
+                // Add send button handler for commands
+                if (elements.sendCommand) {
+                    elements.sendCommand.addEventListener('click', handleCommand);
+                }
+
+                // Handle Enter key in console input
+                if (elements.consoleInput) {
+                    elements.consoleInput.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') {
+                            handleCommand();
+                        }
+                    });
                 }
 
                 // Add export info button handler
@@ -1384,46 +1416,74 @@
                 elements.consoleInput.focus();
             }
 
+            // Send command to the game via broadcast channel
+            function sendCommandToGame(command) {
+                try {
+                    if (broadcastChannel) {
+                        broadcastChannel.postMessage(command);
+                        logToConsole(`Command sent: ${JSON.stringify(command)}`, 'info');
+                    } else {
+                        logToConsole('Error: Not connected to game', 'error');
+                    }
+                } catch (error) {
+                    logToConsole(`Error sending command: ${error.message}`, 'error');
+                }
+            }
+
             // Process console commands
             function processCommand(command) {
-                const [cmd, ...args] = command.split(' ');
-                const cmdLower = cmd.toLowerCase();
+                const parts = command.trim().split(/\s+/);
+                const cmd = parts[0]?.toLowerCase();
+                const args = parts.slice(1);
 
                 try {
+                    // Handle 'set admin' command
+                    if (cmd === 'set' && args.length >= 2 && args[0].toLowerCase() === 'admin') {
+                        const state = args[1].toLowerCase();
+                        if (state === 'true' || state === 'false') {
+                            // Send as a command that will be handled by handleAdminCommand
+                            const commandObj = { 
+                                type: 'set',
+                                data: {
+                                    key: 'admin',
+                                    value: state === 'true'
+                                }
+                            };
+                            
+                            logToConsole(`Sending admin mode ${state === 'true' ? 'enable' : 'disable'} command...`);
+                            
+                            // Send the command to the game
+                            if (broadcastChannel) {
+                                broadcastChannel.postMessage({
+                                    type: 'command',
+                                    data: commandObj
+                                });
+                            } else {
+                                logToConsole('Error: Not connected to game', 'error');
+                            }
+                            return;
+                        } else {
+                            logToConsole('Invalid command. Use: set admin true|false', 'error');
+                            return;
+                        }
+                    }
+
+                    // Handle other commands
                     switch (cmdLower) {
                         case 'help':
                             showHelp();
-                            break;
+                            return;
                         case 'clear':
                             clearConsole();
-                            break;
+                            return;
                         case 'status':
                             checkSystemStatus();
-                            break;
-                        case 'reload':
-                            loadWasmModule();
-                            break;
-                        case 'benchmark':
-                            runBenchmark();
-                            break;
-                        case 'test':
-                            runTests(args[0]);
-                            break;
-                        case 'eval':
-                            // Security note: In a production environment, you should never use eval()
-                            // with user input. This is just for debugging purposes.
-                            try {
-                                const result = eval(args.join(' '));
-                                logToConsole(`Result: ${JSON.stringify(result, null, 2)}`, 'success');
-                            } catch (e) {
-                                logToConsole(`Error: ${e.message}`, 'error');
-                            }
-                            break;
+                            return;
                         default:
-                            logToConsole(`Unknown command: ${cmd}. Type 'help' for a list of commands.`, 'error');
+                            logToConsole('Unknown command. Type "help" for available commands.', 'error');
                     }
                 } catch (error) {
-                    logToConsole(`Command error: ${error.message}`, 'error');
+                    logToConsole(`Error processing command: ${error.message}`, 'error');
                 }
             }
 

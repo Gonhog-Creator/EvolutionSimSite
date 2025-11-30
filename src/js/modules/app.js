@@ -1,6 +1,8 @@
 import { logger } from './logger.js';
 import { saveManager } from './saveManager.js';
 import { UIManager } from './uiManager.js';
+import { selectionManager } from './selectionManager.js';
+import { temperatureManager } from './temperatureManager.js';
 
 class App {
     constructor() {
@@ -10,7 +12,28 @@ class App {
         this.currentMainLoop = null;
         this.isRunning = false;
         this.isPaused = false;
+        this.isAdmin = false; // Admin mode flag
         this.gameState = null;
+        this.showTemperature = false; // Toggle for temperature visualization
+        this.adminIndicator = null; // Will hold the admin indicator element
+        
+        // Initialize managers
+        this.selectionManager = selectionManager;
+        this.temperatureManager = temperatureManager;
+        
+        // Setup temperature adjustment handler
+        this.selectionManager.onTemperatureAdjust = (x, y, isDecrease = false) => {
+            if (this.isAdmin) {
+                const currentTemp = this.temperatureManager.getTemperature(x, y);
+                const change = isDecrease ? -10 : 10;
+                const newTemp = currentTemp + change;
+                this.temperatureManager.setTemperature(x, y, newTemp);
+                const action = isDecrease ? 'Decreased' : 'Increased';
+                logger.log(`${action} temperature at (${x}, ${y}) to ${newTemp.toFixed(1)}°C`);
+            } else {
+                logger.log('Temperature adjustment requires admin mode');
+            }
+        };
         
         // Initialize Save Manager
         this.saveManager = saveManager;
@@ -21,6 +44,13 @@ class App {
         // Initialize diagnostics channel
         this.diagChannel = null;
         this.setupDiagnostics();
+        
+        // Bind keyboard events
+        this.handleKeyDown = this.handleKeyDown.bind(this);
+        document.addEventListener('keydown', this.handleKeyDown);
+        
+        // Initialize render method
+        this.render = this.render.bind(this);
     }
 
     async initialize() {
@@ -69,22 +99,107 @@ class App {
 
     // UI-related methods have been moved to UIManager
 
+    /**
+     * Main render loop
+     * @param {number} timestamp - Current timestamp from requestAnimationFrame
+     */
+    async render(timestamp) {
+        try {
+            if (!this.lastRenderTime) {
+                this.lastRenderTime = timestamp;
+            }
+            
+            const deltaTime = timestamp - this.lastRenderTime;
+            this.lastRenderTime = timestamp;
+            
+            // Get canvas context
+            const canvas = document.querySelector('canvas');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Always update temperature system, but only render if enabled
+            if (this.temperatureManager) {
+                this.temperatureManager.update();
+                
+                // Update selection tooltip if hovering over a cell
+                if (this.selectionManager) {
+                    const hoveredCell = this.selectionManager.getHoveredCell();
+                    if (hoveredCell) {
+                        const temp = this.temperatureManager.getTemperature(hoveredCell.x, hoveredCell.y);
+                        this.selectionManager.updateTooltip(temp);
+                    }
+                }
+                
+                // Draw temperature overlay (pass the showTemperature flag)
+                this.temperatureManager.render(ctx, this.grid?.cellSize || 20, this.showTemperature);
+            }
+            
+            // Draw the grid
+            await this.drawGrid(ctx, canvas.width, canvas.height);
+            
+            // Draw selection and hover effects
+            if (this.selectionManager) {
+                this.selectionManager.render(ctx);
+            }
+            
+            // Continue the animation loop if running
+            if (this.isRunning) {
+                this.currentMainLoop = requestAnimationFrame(this.render.bind(this));
+            }
+        } catch (error) {
+            logger.error('Error in render loop:', error);
+            // Stop the animation loop on error
+            this.isRunning = false;
+            throw error;
+        }
+    }
+
     setupDiagnostics() {
         try {
             this.diagChannel = new BroadcastChannel('evolution-sim-diag');
             
+            // Handle incoming messages
+            this.diagChannel.onmessage = (event) => {
+                const { type, data } = event.data;
+                
+                switch (type) {
+                    case 'command':
+                        this.handleAdminCommand(data);
+                        break;
+                    case 'status':
+                        // Handle status updates if needed
+                        break;
+                }
+            };
+            
             // Send initial status
-            this.sendDiagMessage('status', { connected: true });
+            this.sendDiagMessage('status', { 
+                connected: true,
+                isAdmin: this.isAdmin,
+                commands: [
+                    'set admin true|false',
+                    'getStatus'
+                ]
+            });
             
             // Set up a ping interval to keep the connection alive
             this.diagPingInterval = setInterval(() => {
-                this.sendDiagMessage('status', { connected: true });
-            }, 2000); // Send status update every 2 seconds
+                this.sendDiagMessage('status', { 
+                    connected: true,
+                    isAdmin: this.isAdmin
+                });
+            }, 10000); // Send status every 10 seconds
             
             // Send a welcome message
             this.sendDiagMessage('log', {
                 message: 'Diagnostics channel initialized',
-                type: 'info'
+                type: 'info',
+                isAdmin: this.isAdmin
             });
             
         } catch (error) {
@@ -98,16 +213,126 @@ class App {
         try {
             this.diagChannel.postMessage({
                 type,
-                data,
-                timestamp: Date.now()
+                timestamp: new Date().toISOString(),
+                data: {
+                    ...data,
+                    isAdmin: this.isAdmin // Always include admin status in messages
+                }
             });
-            
-            // Update last message time for connection tracking
-            this.lastDiagMessageTime = Date.now();
-            
         } catch (error) {
-            console.error('Failed to send diagnostics message:', error);
+            logger.error('Error sending diagnostic message:', error);
         }
+    }
+    
+    /**
+     * Handles admin commands from the diagnostic console
+     * @param {Object} command - The command to handle
+     * @param {string} command.type - The type of command
+     * @param {any} command.data - Command data
+     */
+    handleAdminCommand(command) {
+        if (!command || !command.type) return;
+        
+        // Only log the command type, not the full data
+        logger.log(`Admin command: ${command.type} ${command.data?.key || ''}`);
+        
+        // Handle 'set' commands (e.g., 'set admin true')
+        if (command.type === 'set' && command.data && command.data.key) {
+            const { key, value } = command.data;
+            
+            switch (key.toLowerCase()) {
+                case 'admin':
+                    const adminState = String(value).toLowerCase() === 'true';
+                    if (this.isAdmin !== adminState) {
+                        this.toggleAdminMode();
+                        // Only log the state change, not the command
+                        logger.log(`Admin mode ${adminState ? 'enabled' : 'disabled'}`);
+                    }
+                    break;
+                default:
+                    logger.warn(`Unknown setting: ${key}`);
+            }
+            return;
+        }
+        
+        // Handle other command types
+        switch (command.type) {
+            case 'getStatus':
+                this.sendDiagMessage('status', {
+                    isAdmin: this.isAdmin,
+                    isRunning: this.isRunning,
+                    isPaused: this.isPaused,
+                    showTemperature: this.showTemperature
+                });
+                break;
+            default:
+                logger.warn(`Unknown admin command: ${command.type}`);
+        }
+    }
+    
+    /**
+     * Toggles admin mode on/off
+     */
+    toggleAdminMode() {
+        this.isAdmin = !this.isAdmin;
+        
+        // Update UI to show admin status
+        this.updateAdminUI();
+        
+        // Log the change
+        logger.log(`Admin mode ${this.isAdmin ? 'enabled' : 'disabled'}`);
+        
+        // Send updated status
+        this.sendDiagMessage('adminStatus', { isAdmin: this.isAdmin });
+    }
+    
+    /**
+     * Updates the UI to reflect the current admin status
+     */
+    updateAdminUI() {
+        // Create or update the admin indicator
+        if (!this.adminIndicator) {
+            this.adminIndicator = document.createElement('div');
+            this.adminIndicator.id = 'admin-indicator';
+            this.adminIndicator.style.position = 'fixed';
+            this.adminIndicator.style.top = '10px';
+            this.adminIndicator.style.right = '10px';
+            this.adminIndicator.style.padding = '5px 10px';
+            this.adminIndicator.style.borderRadius = '4px';
+            this.adminIndicator.style.fontFamily = 'monospace';
+            this.adminIndicator.style.fontWeight = 'bold';
+            this.adminIndicator.style.zIndex = '1000';
+            document.body.appendChild(this.adminIndicator);
+        }
+        
+        if (this.isAdmin) {
+            this.adminIndicator.textContent = 'ADMIN MODE';
+            this.adminIndicator.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+            this.adminIndicator.style.color = 'white';
+            this.adminIndicator.style.display = 'block';
+            
+            // Add admin-specific keyboard shortcuts or UI elements here
+            document.addEventListener('keydown', this.handleAdminKeyDown.bind(this));
+        } else {
+            this.adminIndicator.style.display = 'none';
+            document.removeEventListener('keydown', this.handleAdminKeyDown.bind(this));
+        }
+    }
+    
+    /**
+     * Handles keyboard shortcuts when in admin mode
+     * @param {KeyboardEvent} event - The keyboard event
+     */
+    handleAdminKeyDown(event) {
+        if (!this.isAdmin) return;
+        
+        // Example: Toggle temperature overlay with T
+        if (event.key.toLowerCase() === 't') {
+            this.showTemperature = !this.showTemperature;
+            logger.log(`Temperature overlay ${this.showTemperature ? 'enabled' : 'disabled'}`);
+        }
+        
+        // Add more admin shortcuts as needed
     }
 
     waitForWasmReady() {
@@ -491,45 +716,22 @@ class App {
                 return;
             }
             
-            // If no initialization function was found, try setting up a render loop
+            // If no initialization function was found, set up our own render loop
             logger.log('No initialization function found, setting up render loop...');
             
-            // Create a simple render loop
-            const canvas = document.querySelector('canvas');
-            if (!canvas) {
-                logger.error('Canvas element not found');
-                return;
-            }
-            
-            // Define render function
-            const render = (timestamp) => {
-                if (!this.isRunning) return;
-                
-                try {
-                    // Clear the canvas
-                    const canvas = document.querySelector('canvas');
-                    if (!canvas) return;
-                    
-                    const ctx = canvas.getContext('2d');
-                    if (!ctx) return;
-                    
-                    // Clear the canvas
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    
-                    // Draw the grid
-                    this.drawGrid();
-                    
-                    // Draw any game objects here
-                    
-                    // Continue the render loop
-                    this.currentMainLoop = window.requestAnimationFrame(render);
-                } catch (error) {
-                    logger.error('Error in render loop:', error);
-                }
-            };
+            // Set simulation state
+            this.isRunning = true;
+            this.isPaused = false;
+            this.lastRenderTime = null;
             
             // Start the render loop
-            this.currentMainLoop = window.requestAnimationFrame(render);
+            this.currentMainLoop = requestAnimationFrame(this.render.bind(this));
+            
+            // Update UI if elements exist
+            const { startBtn, pauseBtn } = this.uiManager.elements || {};
+            if (startBtn) startBtn.disabled = true;
+            if (pauseBtn) pauseBtn.disabled = false;
+            
             logger.log('Render loop started');
         } catch (error) {
             logger.error('Error starting simulation:', error);
@@ -723,30 +925,42 @@ class App {
             canvas.height = window.innerHeight;
             
             // Define grid properties
+            const cellSize = 20; // Size of each grid cell in pixels
+            const width = Math.ceil(canvas.width / cellSize);
+            const height = Math.ceil(canvas.height / cellSize);
+            
             this.grid = {
-                cellSize: 20, // Size of each grid cell in pixels
-                width: Math.ceil(canvas.width / 20),
-                height: Math.ceil(canvas.height / 20),
+                cellSize,
+                width,
+                height,
                 cells: []
             };
             
+            // Initialize temperature system
+            await this.temperatureManager.initialize(width, height, 20);
+            
+            // Initialize selection manager
+            this.selectionManager.init(canvas, cellSize);
+            
             // Initialize grid cells
-            for (let y = 0; y < this.grid.height; y++) {
+            for (let y = 0; y < height; y++) {
                 const row = [];
-                for (let x = 0; x < this.grid.width; x++) {
-                    // Initialize each cell with default values
+                for (let x = 0; x < width; x++) {
+                    const temp = this.temperatureManager.getTemperature(x, y);
                     row.push({
                         x,
                         y,
-                        type: 'empty', // 'empty', 'wall', 'food', 'creature', etc.
+                        type: 'empty',
                         energy: 0,
-                        creature: null
+                        creature: null,
+                        temperature: temp,
+                        lastTempUpdate: 0
                     });
                 }
                 this.grid.cells.push(row);
             }
             
-            logger.log(`Initialized grid: ${this.grid.width}x${this.grid.height} (${this.grid.cellSize}px cells)`);
+            logger.log(`Initialized grid: ${width}x${height} (${cellSize}px cells)`);
             
         } catch (error) {
             logger.error('Failed to initialize simulation grid:', error);
@@ -754,7 +968,47 @@ class App {
         }
     }
     
-    // Food initialization will be implemented here later
+    /**
+     * Toggles temperature visualization on/off
+     */
+    
+    /**
+     * Gets a color for a temperature value
+     * @param {number} temp - Temperature value
+     * @returns {string} CSS color string
+     */
+    getTemperatureColor(temp) {
+        const { minTemp, maxTemp } = this.temperatureSettings;
+        
+        // Normalize temperature to 0-1 range
+        let t = (temp - minTemp) / (maxTemp - minTemp);
+        t = Math.max(0, Math.min(1, t)); // Clamp to 0-1
+        
+        // Create gradient from blue (cold) to red (hot)
+        const r = Math.round(t * 255);
+        const b = Math.round((1 - t) * 255);
+        
+        return `rgb(${r}, 0, ${b})`;
+    }
+    
+    /**
+     * Handles keyboard input
+     * @param {KeyboardEvent} event - The keyboard event
+     */
+    handleKeyDown(event) {
+        // Toggle temperature view with 't' key
+        if (event.key.toLowerCase() === 't') {
+            this.showTemperature = !this.showTemperature;
+            logger.log(`Temperature view ${this.showTemperature ? 'enabled' : 'disabled'}`);
+            
+            // Update tooltip for hovered cell
+            const hoveredCell = this.selectionManager.getHoveredCell();
+            if (hoveredCell) {
+                const temp = this.temperatureManager.getTemperature(hoveredCell.x, hoveredCell.y);
+                this.selectionManager.updateTooltip(temp);
+            }
+        }
+    }
     
     /**
      * Draws the simulation grid
@@ -767,23 +1021,24 @@ class App {
             // If no context is provided, get it from the canvas
             if (!ctx) {
                 const canvas = document.querySelector('canvas');
-                if (!canvas) return;
+                if (!canvas) return false;
                 
                 ctx = canvas.getContext('2d');
-                if (!ctx) return;
+                if (!ctx) return false;
                 
                 width = width || canvas.width;
                 height = height || canvas.height;
+                
+                // Clear the canvas
+                ctx.clearRect(0, 0, width, height);
             }
             
-            // If we have a grid, use its cell size, otherwise default to 20
+            // Set grid style
             const cellSize = this.grid?.cellSize || 20;
-            
-            // Set grid line style
             ctx.strokeStyle = this.grid ? '#1a1a1a' : '#333333';
             ctx.lineWidth = this.grid ? 1 : 0.5;
             
-            // Vertical lines
+            // Draw vertical grid lines
             for (let x = 0; x <= width; x += cellSize) {
                 ctx.beginPath();
                 ctx.moveTo(x, 0);
@@ -791,7 +1046,7 @@ class App {
                 ctx.stroke();
             }
             
-            // Horizontal lines
+            // Draw horizontal grid lines
             for (let y = 0; y <= height; y += cellSize) {
                 ctx.beginPath();
                 ctx.moveTo(0, y);
