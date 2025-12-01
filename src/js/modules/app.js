@@ -49,7 +49,19 @@ class App {
         
         // Bind keyboard events - use capture phase to ensure we get the event first
         this.handleKeyDown = this.handleKeyDown.bind(this);
-        document.addEventListener('keydown', this.handleKeyDown, true); // true = use capture phase
+        this.handleKeyDownCapture = (e) => {
+            // Specifically handle Escape key in capture phase
+            if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
+                this.handleKeyDown(e);
+                // Prevent other handlers from seeing this event
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                return false;
+            }
+        };
+        // Add both capture and bubble phase listeners for robustness
+        document.addEventListener('keydown', this.handleKeyDownCapture, true); // Capture phase
+        document.addEventListener('keydown', this.handleKeyDown, false); // Bubble phase
         
         // Initialize render method
         this.render = this.render.bind(this);
@@ -1091,66 +1103,55 @@ async initializeSimulationGrid() {
  * @param {KeyboardEvent} event - The keyboard event
  */
 handleKeyDown(event) {
-        // Only handle space and escape if the game is running
-        if (!this.isRunning) return;
-        
-        // Toggle pause with spacebar (without menu)
-        if (event.code === 'Space') {
-            this.togglePause(false); // Don't show menu, just show banner
-            event.preventDefault(); // Prevent scrolling the page
-            event.stopPropagation(); // Stop event bubbling
-            return;
-        }
-        
-        // Toggle pause menu with Escape key - handle this first
-        if (event.key === 'Escape') {
-            // Only handle this if we're in the game and not in any modal
-            if (this.isRunning && this.uiManager) {
-                const isAnyModalVisible = 
-                    (this.uiManager.elements.newGameModal && !this.uiManager.elements.newGameModal.classList.contains('hidden')) ||
-                    (this.uiManager.elements.saveManager && !this.uiManager.elements.saveManager.classList.contains('hidden'));
-                
-                if (!isAnyModalVisible) {
-                    if (this.isPaused) {
-                        // If already paused, just toggle the menu visibility
-                        if (this.uiManager.elements.pauseMenu) {
-                            if (!this.uiManager.elements.pauseMenu.classList.contains('hidden')) {
-                                // Menu is visible - hide it and resume the game
-                                this.uiManager.hidePauseMenu();
-                                this.resumeSimulation();
-                            } else {
-                                // Menu is hidden - show it and ensure game is paused
-                                this.uiManager.showPauseMenu();
-                                if (!this.isPaused) {
-                                    this.togglePause(true);
-                                }
+    // Check for Escape key first
+    if (event.key === 'Escape' || event.key === 'Esc' || event.keyCode === 27) {
+        // Only handle this if we're in the game and not in any modal
+        if (this.isRunning && this.uiManager) {
+            const isAnyModalVisible = 
+                (this.uiManager.elements.newGameModal && !this.uiManager.elements.newGameModal.classList.contains('hidden')) ||
+                (this.uiManager.elements.saveManager && !this.uiManager.elements.saveManager.classList.contains('hidden'));
+            
+            if (!isAnyModalVisible) {
+                if (this.isPaused) {
+                    // If already paused, just toggle the menu visibility
+                    if (this.uiManager.elements.pauseMenu) {
+                        if (!this.uiManager.elements.pauseMenu.classList.contains('hidden')) {
+                            // Menu is visible - hide it and resume the game
+                            this.uiManager.hidePauseMenu();
+                            this.resumeSimulation();
+                        } else {
+                            // Menu is hidden - show it and ensure game is paused
+                            this.uiManager.showPauseMenu();
+                            if (!this.isPaused) {
+                                this.togglePause(true);
                             }
                         }
-                    } else {
-                        // If not paused, pause and show menu
-                        this.togglePause(true);
                     }
-                    event.preventDefault();
-                    event.stopPropagation();
-                    return;
+                } else {
+                    // If not paused, pause and show menu
+                    this.togglePause(true);
                 }
+                event.preventDefault();
+                event.stopPropagation();
+                return;
             }
         }
-        
-        // Toggle temperature view with 't' key
-        if (event.key.toLowerCase() === 't') {
-            this.showTemperature = !this.showTemperature;
-            
-            // Update tooltip for hovered cell if selectionManager is available
-            if (this.selectionManager && typeof this.selectionManager.getHoveredCell === 'function') {
-                const hoveredCell = this.selectionManager.getHoveredCell();
-                if (hoveredCell && this.temperatureManager) {
-                    const temp = this.temperatureManager.getTemperature(hoveredCell.x, hoveredCell.y);
-                    if (this.selectionManager.updateTooltip) {
-                        this.selectionManager.updateTooltip(temp);
-                    }
-                }
-            }
+        // Always prevent default for Escape key to avoid browser-specific behaviors
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+    }
+    
+    // Only handle other keys if the game is running
+    if (!this.isRunning) return;
+    
+    // Toggle pause with spacebar (without menu)
+    if (event.code === 'Space') {
+        this.togglePause(false); // Don't show menu, just show banner
+        event.preventDefault(); // Prevent scrolling the page
+        event.stopPropagation(); // Stop event bubbling
+        return;
+    }
             
             // Prevent default and stop propagation
             event.preventDefault();

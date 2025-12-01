@@ -1,0 +1,5 @@
+# Required for code analysis
+tree-sitter>=0.20.0
+tree-sitter-languages>=1.5.0
+pathlib2>=2.3.7
+# Note: If you want to use tree-sitter for more accurate parsing, you'll need to install language grammars separately
