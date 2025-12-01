@@ -1032,37 +1032,110 @@ async initializeSimulationGrid() {
     /**
      * Handles the Save Game button click from the pause menu
      */
-    onSaveGameClick() {
+    async onSaveGameClick() {
         logger.log('Save Game clicked');
-        // TODO: Implement save game functionality
-        this.uiManager.showNotification('Game saved successfully!');
         
-        // Pause the game
-        this.isRunning = false;
-        this.isPaused = false;
-        
-        // Hide game UI elements
-        if (this.uiManager) {
-            this.uiManager.hidePauseBanner();
-            this.uiManager.hidePauseMenu();
-            this.uiManager.hideDebugOverlay();
+        try {
+            if (!this.gameState) {
+                throw new Error('No game state to save');
+            }
             
-            // Show main menu
-            this.uiManager.showMainMenu();
+            // Get the save name, default to 'My Game' if not set
+            const saveName = this.gameState.saveName || 'My Game';
+            const saveId = this.gameState.saveId || null;
+            
+            // Prepare the game state for saving
+            const gameStateToSave = {
+                ...this.gameState,
+                // Add any additional state that should be saved
+                timestamp: Date.now(),
+                version: '1.0.0'
+            };
+            
+            // Save the game using the save manager
+            const savedGame = this.saveManager.saveGame(gameStateToSave, saveName, saveId);
+            
+            // Update the game state with the save ID if it's a new save
+            if (!saveId && savedGame && savedGame.id) {
+                this.gameState.saveId = savedGame.id;
+                this.gameState.saveName = savedGame.name;
+            }
+            
+            this.uiManager.showNotification('Game saved successfully!');
+            logger.log('Game saved successfully', { saveId: savedGame?.id, saveName });
+            
+            return savedGame;
+        } catch (error) {
+            logger.error('Error saving game:', error);
+            this.uiManager.showNotification('Failed to save game. Please try again.');
+            throw error;
         }
+    }
+    
+    /**
+     * Handles the Save & Quit button click from the pause menu
+     */
+    async onSaveAndQuitClick() {
+        logger.log('Save & Quit clicked');
         
-        // Hide the selection tooltip if it's visible
-        if (this.selectionManager) {
-            this.selectionManager.hideTooltip();
+        try {
+            // Save the game first
+            await this.onSaveGameClick();
+            
+            // Small delay to show the save notification
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Then quit to menu
+            await this.onQuitToMenuClick();
+            
+            logger.log('Successfully saved and returned to main menu');
+        } catch (error) {
+            logger.error('Error during save & quit:', error);
+            this.uiManager.showNotification('Save failed. Game not quit.');
+            throw error;
         }
+    }
+    
+    /**
+     * Handles the Quit to Menu button click from the pause menu
+     * This will quit to the main menu without saving
+     */
+    async onQuitToMenuClick() {
+        logger.log('Quit to Menu clicked');
         
-        // Stop any running animation frame
-        if (this.currentMainLoop) {
-            cancelAnimationFrame(this.currentMainLoop);
-            this.currentMainLoop = null;
+        try {
+            // Update game state
+            this.isRunning = false;
+            this.isPaused = false;
+            
+            // Hide game UI elements
+            if (this.uiManager) {
+                this.uiManager.hidePauseBanner();
+                this.uiManager.hidePauseMenu();
+                this.uiManager.hideDebugOverlay();
+                this.uiManager.showMainMenu();
+            }
+            
+            // Hide the selection tooltip if it's visible
+            if (this.selectionManager) {
+                this.selectionManager.hideTooltip();
+            }
+            
+            // Stop any running animation frame
+            if (this.currentMainLoop) {
+                cancelAnimationFrame(this.currentMainLoop);
+                this.currentMainLoop = null;
+            }
+            
+            logger.log('Successfully returned to main menu');
+            this.uiManager.showNotification('Returned to main menu');
+            
+            return true;
+        } catch (error) {
+            logger.error('Error quitting to menu:', error);
+            this.uiManager.showNotification('Error returning to main menu');
+            throw error;
         }
-        
-        logger.log('Successfully returned to main menu');
     }
 
     /**
