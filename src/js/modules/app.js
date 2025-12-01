@@ -1152,14 +1152,13 @@ handleKeyDown(event) {
         event.stopPropagation(); // Stop event bubbling
         return;
     }
-            
-            // Prevent default and stop propagation
-            event.preventDefault();
-            event.stopPropagation();
-            return false;
-        }
-    }
     
+    // Prevent default and stop propagation for other keys
+    event.preventDefault();
+    event.stopPropagation();
+    return false;
+}
+
     /**
      * Draws the simulation grid
      * @param {CanvasRenderingContext2D} [ctx] - Optional canvas 2D context
@@ -1248,6 +1247,5 @@ handleKeyDown(event) {
         }
     }
 }
-
 // Export a singleton instance
 export const app = new App();
