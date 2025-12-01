@@ -37,8 +37,8 @@ class App {
             // No logging of temperature changes
         };
         
-        // Initialize Save Manager
-        this.saveManager = saveManager;
+        // Initialize Save Manager with fallback to JavaScript implementation
+        this.saveManager = saveManager.getInstance({ useFallback: true });
         
         // Initialize UI Manager with reference to this app instance
         this.uiManager = new UIManager(this);
@@ -94,11 +94,14 @@ class App {
             this.uiManager.initialize();
             this.setupDiagnostics();
             
-            // Wait for WebAssembly to be ready
-            await this.waitForWasmReady();
+            // Wait for WebAssembly to be ready and get the module
+            const wasmModule = await this.waitForWasmReady();
             
-            // Initialize WebAssembly module
-            if (window.Module && typeof window.Module._initialize === 'function') {
+            // Initialize components that depend on WebAssembly
+            this.onWasmReady(wasmModule);
+            
+            // Initialize WebAssembly module if needed
+            if (wasmModule && typeof wasmModule._initialize === 'function') {
                 logger.log('Initializing WebAssembly module...');
                 this.wasmInitializationPromise = this.initializeWasm();
                 await this.wasmInitializationPromise;
@@ -116,9 +119,70 @@ class App {
         }
     }
 
-    // UI-related methods have been moved to UIManager
+    onWasmReady(wasmModule) {
+        // Initialize Save Manager with WebAssembly module
+        if (wasmModule) {
+            this.saveManager = saveManager.getInstance(wasmModule);
+        }
+        
+        // Initialize any WebAssembly-dependent components
+        if (this.temperatureManager && typeof this.temperatureManager.initialize === 'function') {
+            this.temperatureManager.initialize();
+        }
+    }
 
-    // UI-related methods have been moved to UIManager
+    async init() {
+        logger.log('Initializing application...');
+        
+        try {
+            // Initialize UI Manager
+            this.uiManager = new UIManager(this);
+            
+            // Initialize diagnostics
+            this.diagChannel = new DiagnosticsChannel();
+            
+            // Initialize save manager with fallback
+            this.saveManager = saveManager.getInstance({ useFallback: true });
+            
+            // Try to initialize WebAssembly
+            await this.initializeWasm();
+            
+            // Other initializations...
+            
+            logger.log('Application initialized successfully');
+        } catch (error) {
+            logger.error('Error during initialization:', error);
+            // Fallback to JavaScript implementation
+            this.saveManager._useFallback = true;
+            logger.warn('Falling back to JavaScript implementation');
+        }
+    }
+    
+    /**
+     * Initialize WebAssembly module
+     */
+    async initializeWasm() {
+        if (this.saveManager._useFallback) {
+            logger.log('Using JavaScript fallback, skipping WebAssembly initialization');
+            return;
+        }
+        
+        logger.log('Initializing WebAssembly...');
+        
+        try {
+            const wasmModule = await this.waitForWasmReady();
+            if (wasmModule) {
+                this.saveManager.setWasmModule(wasmModule);
+                logger.log('WebAssembly module initialized successfully');
+            } else {
+                throw new Error('Failed to initialize WebAssembly module');
+            }
+        } catch (error) {
+            logger.error('Error initializing WebAssembly:', error);
+            this.saveManager._useFallback = true;
+            logger.warn('Falling back to JavaScript implementation');
+        }
+    }
 
     /**
      * Main render loop
@@ -145,19 +209,32 @@ class App {
             
             // Always update temperature system, but only render if enabled
             if (this.temperatureManager) {
-                this.temperatureManager.update();
-                
-                // Update selection tooltip if hovering over a cell
-                if (this.selectionManager) {
-                    const hoveredCell = this.selectionManager.getHoveredCell();
-                    if (hoveredCell) {
-                        const temp = this.temperatureManager.getTemperature(hoveredCell.x, hoveredCell.y);
-                        this.selectionManager.updateTooltip(temp);
+                try {
+                    // Safely update temperature system
+                    if (typeof this.temperatureManager.update === 'function') {
+                        this.temperatureManager.update();
                     }
+                    
+                    // Update selection tooltip if hovering over a cell
+                    if (this.selectionManager) {
+                        const hoveredCell = this.selectionManager.getHoveredCell();
+                        if (hoveredCell && 
+                            typeof this.temperatureManager.getTemperature === 'function') {
+                            const temp = this.temperatureManager.getTemperature(hoveredCell.x, hoveredCell.y);
+                            if (temp !== undefined && temp !== null) {
+                                this.selectionManager.updateTooltip(temp);
+                            }
+                        }
+                    }
+                    
+                    // Draw temperature overlay if enabled and render method exists
+                    if (this.showTemperature && 
+                        typeof this.temperatureManager.render === 'function') {
+                        this.temperatureManager.render(ctx, this.grid?.cellSize || 20, this.showTemperature);
+                    }
+                } catch (error) {
+                    console.error('Error in temperature system:', error);
                 }
-                
-                // Draw temperature overlay (pass the showTemperature flag)
-                this.temperatureManager.render(ctx, this.grid?.cellSize || 20, this.showTemperature);
             }
             
             // Draw the grid
@@ -419,67 +496,8 @@ class App {
         return false;
     }
 
-    waitForWasmReady() {
-        return new Promise((resolve, reject) => {
-            if (window.wasmReady) {
-                logger.log('WebAssembly already initialized');
-                resolve();
-                return;
-            }
-            
-            logger.log('Waiting for WebAssembly to be ready...');
-            const timeout = setTimeout(() => {
-                const error = new Error('WebAssembly initialization timed out after 30 seconds');
-                logger.error(error.message);
-                
-                // Log additional debug information
-                if (window.Module) {
-                    logger.error('WebAssembly Module state:', {
-                        status: window.Module.status,
-                        error: window.Module.error,
-                        ready: window.Module.asm ? 'Module.asm exists' : 'Module.asm is undefined'
-                    });
-                } else {
-                    logger.error('window.Module is not defined');
-                }
-                
-                reject(error);
-            }, 30000); // 30 second timeout
-            
-            // Listen for the wasm-ready event
-            const onWasmReady = () => {
-                clearTimeout(timeout);
-                document.removeEventListener('wasm-ready', onWasmReady);
-                logger.log('WebAssembly ready event received');
-                resolve(true);
-            };
-            
-            document.addEventListener('wasm-ready', onWasmReady);
-            
-            // Also check periodically in case the event was missed
-            const checkReady = () => {
-                if (window.wasmReady) {
-                    clearTimeout(timeout);
-                    document.removeEventListener('wasm-ready', onWasmReady);
-                    logger.log('WebAssembly ready (window.wasmReady = true)');
-                    resolve(true);
-                } else if (window.Module && window.Module.asm) {
-                    clearTimeout(timeout);
-                    document.removeEventListener('wasm-ready', onWasmReady);
-                    logger.log('WebAssembly ready (Module.asm detected)');
-                    resolve(true);
-                } else {
-                    requestAnimationFrame(checkReady);
-                }
-            };
-            
-            // Start checking
-            checkReady();
-        });
-    }
-    
     /**
-     * Updates the brush button text based on the current brush size
+     * Updates the brush button text based on current brush size
      */
     updateBrushButtonText() {
         if (this.adminBrushButton && this.selectionManager) {
@@ -488,14 +506,108 @@ class App {
             this.adminBrushButton.style.color = this.selectionManager.brushSize === 0 ? '#000' : '#fff';
         }
     }
-    
-    // New game modal methods
-    showNewGameModal() {
-        // Delegate to UIManager to show the new game modal
+
+    /**
+     * Waits for the WebAssembly module to be ready
+     * @returns {Promise<Object|null>} The WebAssembly module or null if not available
+     */
+    async waitForWasmReady() {
+        return new Promise((resolve, reject) => {
+            // First check if we already have the module ready
+            if (window.wasmReady && window.Module) {
+                logger.log('WebAssembly already initialized');
+                resolve(window.Module);
+                return;
+            }
+            
+            logger.log('Waiting for WebAssembly to be ready...');
+            
+            const timeout = setTimeout(() => {
+                const error = new Error('WebAssembly initialization timed out after 30 seconds');
+                logger.error(error.message);
+                
+                // Log additional debug information
+                if (window.Module) {
+                    const moduleInfo = {
+                        status: window.Module.status,
+                        error: window.Module.error,
+                        hasAsm: !!window.Module.asm,
+                        hasRuntimeInitialized: !!window.Module.onRuntimeInitialized,
+                        exports: window.Module.asm ? Object.keys(window.Module.asm) : []
+                    };
+                    logger.error('WebAssembly Module state:', moduleInfo);
+                    console.log('WebAssembly Module object:', window.Module);
+                } else {
+                    logger.error('window.Module is not defined');
+                }
+                
+                // Even if we time out, try to resolve with what we have
+                resolve(window.Module || null);
+            }, 30000); // 30 second timeout
+            
+            // Function to complete initialization
+            const completeInitialization = (module) => {
+                clearTimeout(timeout);
+                logger.log('WebAssembly initialization complete');
+                
+                // Set up the save manager with the WebAssembly module
+                try {
+                    if (module) {
+                        logger.log('Setting up save manager with WebAssembly module');
+                        this.saveManager.setWasmModule(module);
+                    } else {
+                        logger.warn('No WebAssembly module provided, using fallback save system');
+                    }
+                    resolve(module);
+                } catch (error) {
+                    logger.error('Error initializing save manager:', error);
+                    resolve(null); // Resolve with null to continue without WebAssembly
+                }
+            };
+            
+            // Check if the module is already ready
+            if (window.Module) {
+                if (window.Module.asm) {
+                    return completeInitialization(window.Module);
+                }
+                
+                // If not ready, wait for onRuntimeInitialized
+                const originalInit = window.Module.onRuntimeInitialized;
+                window.Module.onRuntimeInitialized = () => {
+                    if (originalInit) originalInit();
+                    completeInitialization(window.Module);
+                };
+            } else {
+                // Listen for the wasm-ready event as a fallback
+                const onWasmReady = () => {
+                    document.removeEventListener('wasm-ready', onWasmReady);
+                    completeInitialization(window.Module);
+                };
+                
+                document.addEventListener('wasm-ready', onWasmReady);
+                
+                // Also check periodically in case the event was missed
+                const checkReady = setInterval(() => {
+                    if (window.Module) {
+                        clearInterval(checkReady);
+                        completeInitialization(window.Module);
+                    }
+                }, 100);
+            }
+        });
+    }
+
+    /**
+     * Shows the new game modal to get the save name
+     */
+    startNewGame() {
+        logger.log('Showing new game modal...');
         this.uiManager.showNewGameModal();
     }
-    
 
+    /**
+     * Hides the new game modal
+     */
     hideNewGameModal() {
         this.uiManager.hideNewGameModal();
     }
@@ -562,8 +674,16 @@ class App {
         }
     }
     
+    /**
+     * Shows the new game modal to get the save name
+     */
     async startNewGame() {
-        this.showNewGameModal();
+        if (this.uiManager && typeof this.uiManager.showNewGameModal === 'function') {
+            this.uiManager.showNewGameModal();
+        } else {
+            logger.error('UIManager or showNewGameModal method not available');
+            throw new Error('Failed to show new game modal: UI Manager not available');
+        }
     }
     
     async loadWasm() {
@@ -639,14 +759,6 @@ class App {
     }
 
     /**
-     * Shows the new game modal to get the save name
-     */
-    startNewGame() {
-        logger.log('Showing new game modal...');
-        this.uiManager.showNewGameModal();
-    }
-
-    /**
      * Shows the save manager modal with a list of saved games
      */
     showSaveManager() {
@@ -676,22 +788,51 @@ class App {
         logger.log(`Loading game with ID: ${saveId}`);
         
         try {
-            // Load the saved game state
-            const savedState = saveManager.loadGame(saveId);
+            // Show loading indicator
+            this.uiManager.showLoading('Loading game...');
+            
+            // Load the saved game state using the instance method
+            const savedState = await this.saveManager.loadGame(saveId, (progress, message) => {
+                this.uiManager.updateLoading(progress, message);
+            });
             
             if (!savedState) {
-                logger.error('Failed to load saved game: Invalid save data');
-                this.uiManager.showNotification('Failed to load saved game. The save file may be corrupted.');
-                return;
+                throw new Error('Invalid save data');
             }
             
             // Hide the save manager modal and main menu
             this.hideSaveManager();
             this.hideMainMenu();
             
+            // Hide loading indicator
+            this.uiManager.hideLoading();
+            
             // Show the game container
             if (this.uiManager.elements.gameContainer) {
                 this.uiManager.elements.gameContainer.classList.remove('hidden');
+            }
+            
+            // Log the saved state for debugging
+            logger.log('Saved state when loading:', {
+                hasTemperatureData: !!savedState.temperatureData,
+                gridDimensions: savedState.grid || 'No grid dimensions',
+                saveId: savedState.saveId || savedState.id,
+                saveName: savedState.saveName || savedState.name
+            });
+            
+            // Store temperature data and grid dimensions before resetting the simulation
+            const temperatureData = savedState.temperatureData;
+            const gridDimensions = savedState.grid || {};
+            
+            // Log the temperature data we're about to save
+            if (temperatureData) {
+                logger.log('Loading temperature data from save:', {
+                    width: temperatureData.width,
+                    height: temperatureData.height,
+                    hasCells: !!temperatureData.cells && temperatureData.cells.length > 0
+                });
+            } else {
+                logger.warn('No temperature data found in saved state');
             }
             
             // Reset the simulation with the loaded state
@@ -706,10 +847,60 @@ class App {
                 saveName: savedState.saveName || savedState.name || 'Loaded Game'
             };
             
+            // If we have temperature data, apply it to the temperature manager
+            if (temperatureData) {
+                try {
+                    // Log the temperature data we're about to load
+                    logger.log('Loading temperature data:', {
+                        hasCells: !!temperatureData.cells,
+                        width: temperatureData.width,
+                        height: temperatureData.height,
+                        ambientTemp: temperatureData.ambientTemp
+                    });
+
+                    // Initialize temperature system with the loaded dimensions or fall back to current grid
+                    const width = temperatureData.width || this.gameState.grid?.width;
+                    const height = temperatureData.height || this.gameState.grid?.height;
+                    const ambientTemp = temperatureData.ambientTemp || 20;
+                    
+                    if (width > 0 && height > 0) {
+                        logger.log(`Initializing temperature system with dimensions: ${width}x${height}, ambient: ${ambientTemp}°C`);
+                        
+                        // Initialize the temperature system
+                        await this.temperatureManager.initialize(width, height, ambientTemp);
+                        
+                        // Apply the saved temperature data
+                        logger.log('Setting temperature data from save');
+                        const success = this.temperatureManager.setTemperatureData(temperatureData);
+                        
+                        if (success) {
+                            logger.log('Successfully loaded temperature data');
+                        } else {
+                            logger.error('Failed to set temperature data');
+                        }
+                    } else {
+                        logger.error('Invalid dimensions for temperature system:', { width, height });
+                    }
+                } catch (error) {
+                    logger.error('Error initializing temperature system:', error);
+                }
+            } else {
+                logger.warn('No temperature data to load, initializing with default values');
+                const width = this.gameState.grid?.width || 0;
+                const height = this.gameState.grid?.height || 0;
+                if (width > 0 && height > 0) {
+                    this.temperatureManager.initialize(width, height);
+                }
+            }
+            
             logger.log('Game state after loading:', {
                 saveId: this.gameState.saveId,
                 saveName: this.gameState.saveName,
-                hasGameState: !!this.gameState
+                hasGameState: !!this.gameState,
+                grid: this.gameState.grid ? {
+                    width: this.gameState.grid.width,
+                    height: this.gameState.grid.height
+                } : 'No grid data'
             });
             
             // Start the simulation
@@ -965,8 +1156,45 @@ async initializeSimulationGrid() {
                 cells: []
             };
             
-            // Initialize temperature system
-            await this.temperatureManager.initialize(width, height, 20);
+            // Check if we have saved temperature data in the game state
+            const savedTemperatureData = this.gameState?.temperatureData;
+            
+            // Log the saved temperature data for debugging
+            logger.log('Initializing temperature system with data:', {
+                hasSavedData: !!savedTemperatureData,
+                savedWidth: savedTemperatureData?.width,
+                savedHeight: savedTemperatureData?.height,
+                currentWidth: width,
+                currentHeight: height
+            });
+            
+            try {
+                // Initialize the temperature system with the current dimensions
+                await this.temperatureManager.initialize(width, height);
+                
+                // If we have saved temperature data and the dimensions match, apply it
+                if (savedTemperatureData && 
+                    savedTemperatureData.width === width && 
+                    savedTemperatureData.height === height) {
+                    
+                    logger.log('Applying saved temperature data');
+                    this.temperatureManager.setTemperatureData(savedTemperatureData);
+                } else if (savedTemperatureData) {
+                    logger.warn('Saved temperature data dimensions do not match current grid', {
+                        savedWidth: savedTemperatureData.width,
+                        savedHeight: savedTemperatureData.height,
+                        currentWidth: width,
+                        currentHeight: height
+                    });
+                } else {
+                    logger.log('No saved temperature data found, using default temperature');
+                }
+            } catch (error) {
+                logger.error('Error initializing temperature system:', error);
+                // Fall back to default temperature
+                await this.temperatureManager.initialize(width, height, 20);
+                logger.log('Initialized temperature system with default temperature after error');
+            }
             
             // Initialize selection manager
             this.selectionManager.init(canvas, cellSize);
@@ -1040,6 +1268,44 @@ async initializeSimulationGrid() {
                 throw new Error('No game state to save');
             }
             
+            // Ensure we have a save manager instance with fallback enabled
+            this.saveManager = saveManager.getInstance({ 
+                useFallback: true,  // Always use fallback to ensure save works
+                wasmModule: window.Module  // Pass the module if available
+            });
+            
+            // If we're not using fallback but don't have a WebAssembly module, try to initialize it
+            if (!this.saveManager._useFallback && !this.saveManager._wasmModule) {
+                try {
+                    logger.log('WebAssembly module not loaded, attempting to initialize...');
+                    const wasmModule = await this.waitForWasmReady();
+                    if (wasmModule) {
+                        this.saveManager.setWasmModule(wasmModule);
+                    } else {
+                        throw new Error('Failed to initialize WebAssembly module');
+                    }
+                } catch (error) {
+                    logger.warn('Error initializing WebAssembly, using fallback:', error);
+                    this.saveManager._useFallback = true;
+                }
+            }
+            
+            // Include temperature data in the game state
+            if (this.temperatureManager) {
+                // Get temperature data with proper structure
+                const tempData = this.temperatureManager.getTemperatureData();
+                if (tempData) {
+                    this.gameState.temperatureData = tempData;
+                    logger.log('Saving temperature data:', {
+                        width: tempData.width,
+                        height: tempData.height,
+                        hasCells: tempData.cells && tempData.cells.length > 0 && tempData.cells[0].length > 0
+                    });
+                } else {
+                    logger.warn('Failed to get temperature data for saving');
+                }
+            }
+            
             // Get the save name, default to 'My Game' if not set
             const saveName = this.gameState.saveName || 'My Game';
             const saveId = this.gameState.saveId || null;
@@ -1047,13 +1313,15 @@ async initializeSimulationGrid() {
             // Prepare the game state for saving
             const gameStateToSave = {
                 ...this.gameState,
+                // Include the temperature system for saving
+                temperatureSystem: this.temperatureManager,
                 // Add any additional state that should be saved
                 timestamp: Date.now(),
                 version: '1.0.0'
             };
             
             // Save the game using the save manager
-            const savedGame = this.saveManager.saveGame(gameStateToSave, saveName, saveId);
+            const savedGame = await this.saveManager.saveGame(gameStateToSave, saveName, saveId);
             
             // Update the game state with the save ID if it's a new save
             if (!saveId && savedGame && savedGame.id) {
@@ -1079,23 +1347,41 @@ async initializeSimulationGrid() {
         logger.log('Save & Quit clicked');
         
         try {
-            // Save the game first
-            await this.onSaveGameClick();
+            // Initialize save manager with fallback enabled
+            this.saveManager = saveManager.getInstance({ 
+                useFallback: true,  // Always use fallback to ensure save works
+                wasmModule: window.Module  // Pass the module if available
+            });
             
-            // Small delay to show the save notification
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // First save the game
+            const savedGame = await this.onSaveGameClick();
             
-            // Then quit to menu
-            await this.onQuitToMenuClick();
-            
-            logger.log('Successfully saved and returned to main menu');
+            if (savedGame) {
+                // Only quit if save was successful
+                await this.onQuitToMenuClick();
+                logger.log('Successfully saved and returned to main menu');
+                return true;
+            } else {
+                throw new Error('Failed to save game');
+            }
         } catch (error) {
             logger.error('Error during save & quit:', error);
-            this.uiManager.showNotification('Save failed. Game not quit.');
+            
+            // If the error is related to WebAssembly, try again with fallback
+            if (error.message.includes('WebAssembly') && this.saveManager && !this.saveManager._useFallback) {
+                logger.warn('Retrying save & quit with fallback save system');
+                this.saveManager._useFallback = true;
+                return this.onSaveAndQuitClick();
+            }
+            
+            // If we're already using fallback or it's a different error, show error to user
+            if (this.uiManager && typeof this.uiManager.showNotification === 'function') {
+                this.uiManager.showNotification('Failed to save game. Your progress may not be saved.');
+            }
             throw error;
         }
     }
-    
+
     /**
      * Handles the Quit to Menu button click from the pause menu
      * This will quit to the main menu without saving
@@ -1205,17 +1491,61 @@ async initializeSimulationGrid() {
                 this.currentMainLoop = null;
             }
 
+            // Preserve temperature data and grid dimensions if they exist
+            const temperatureData = this.gameState?.temperatureData;
+            const gridDimensions = this.gameState?.grid;
+            
+            // Log the current state before reset
+            logger.log('Resetting simulation with data:', {
+                hasTemperatureData: !!temperatureData,
+                gridDimensions: gridDimensions || 'No grid dimensions',
+                saveName: saveName
+            });
+            
+            if (temperatureData) {
+                logger.log('Preserving temperature data during reset:', {
+                    width: temperatureData.width,
+                    height: temperatureData.height,
+                    hasCells: !!temperatureData.cells && temperatureData.cells.length > 0
+                });
+            }
+
             // Reset game state
             this.gameState = {
                 isRunning: false,
                 isPaused: false,
                 saveName: saveName,
                 createdAt: new Date().toISOString(),
-                lastSaved: null
+                lastSaved: null,
+                // Initialize with empty grid that will be populated by initializeSimulationGrid
+                grid: {
+                    width: 0,
+                    height: 0,
+                    cellSize: 20 // Default cell size
+                },
+                // Preserve temperature data if it exists
+                ...(temperatureData && { temperatureData }),
+                // Preserve grid dimensions if they exist, otherwise they'll be set by initializeSimulationGrid
+                ...(gridDimensions && { grid: { 
+                    ...this.gameState?.grid, // Keep any existing grid properties
+                    ...gridDimensions // Override with saved dimensions
+                }})
             };
+            
+            // Log the new game state after reset
+            logger.log('Game state after reset:', {
+                hasTemperatureData: !!this.gameState.temperatureData,
+                grid: this.gameState.grid || 'No grid data'
+            });
 
             // Reinitialize the grid
             await this.initializeSimulationGrid();
+
+            // Reapply temperature data if it exists and we have valid grid dimensions
+            if (temperatureData && gridDimensions && gridDimensions.width && gridDimensions.height) {
+                this.temperatureManager.initialize(gridDimensions.width, gridDimensions.height);
+                this.temperatureManager.setTemperatureData(temperatureData);
+            }
 
             logger.log('Simulation reset successfully', 'info');
             return true;

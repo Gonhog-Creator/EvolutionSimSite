@@ -206,8 +206,10 @@ else()
     
     # Create a library for the engine
     add_library(EvolutionSimLib STATIC
-        engine/core/Application.cpp
-        engine/Logging.cpp
+        src/engine/core/Application.cpp
+        src/engine/Logging.cpp
+        src/engine/serialization/Serialization.cpp
+        src/engine/serialization/SaveSystem.cpp
         platform/desktop/main.cpp
     )
 

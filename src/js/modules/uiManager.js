@@ -139,10 +139,122 @@ export class UIManager {
         this.initializeElements();
         this.setupButtonListeners();
         this.createDebugOverlay();
+        this.createLoadingOverlay();
         logger.log('UI Manager initialized');
         
         // Initially hide the debug overlay until the game starts
         this.hideDebugOverlay();
+    }
+    
+    /**
+     * Creates the loading overlay element
+     */
+    createLoadingOverlay() {
+        // Create loading overlay if it doesn't exist
+        if (!this.loadingOverlay) {
+            this.loadingOverlay = document.createElement('div');
+            this.loadingOverlay.id = 'loading-overlay';
+            this.loadingOverlay.style.position = 'fixed';
+            this.loadingOverlay.style.top = '0';
+            this.loadingOverlay.style.left = '0';
+            this.loadingOverlay.style.width = '100%';
+            this.loadingOverlay.style.height = '100%';
+            this.loadingOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+            this.loadingOverlay.style.display = 'flex';
+            this.loadingOverlay.style.flexDirection = 'column';
+            this.loadingOverlay.style.justifyContent = 'center';
+            this.loadingOverlay.style.alignItems = 'center';
+            this.loadingOverlay.style.zIndex = '2000';
+            this.loadingOverlay.style.color = '#fff';
+            this.loadingOverlay.style.fontFamily = 'Arial, sans-serif';
+            this.loadingOverlay.style.pointerEvents = 'none';
+            
+            // Add loading spinner
+            const spinner = document.createElement('div');
+            spinner.style.border = '4px solid rgba(255, 255, 255, 0.3)';
+            spinner.style.borderRadius = '50%';
+            spinner.style.borderTop = '4px solid #fff';
+            spinner.style.width = '40px';
+            spinner.style.height = '40px';
+            spinner.style.animation = 'spin 1s linear infinite';
+            spinner.style.marginBottom = '20px';
+            
+            // Add loading text
+            const text = document.createElement('div');
+            text.id = 'loading-text';
+            text.textContent = 'Loading...';
+            text.style.marginBottom = '10px';
+            text.style.fontSize = '18px';
+            
+            // Add progress text
+            const progress = document.createElement('div');
+            progress.id = 'loading-progress';
+            progress.style.fontSize = '14px';
+            progress.style.opacity = '0.8';
+            
+            // Add keyframe animation for spinner
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            `;
+            
+            // Append elements
+            this.loadingOverlay.appendChild(style);
+            this.loadingOverlay.appendChild(spinner);
+            this.loadingOverlay.appendChild(text);
+            this.loadingOverlay.appendChild(progress);
+            
+            // Initially hidden
+            this.loadingOverlay.style.display = 'none';
+            
+            document.body.appendChild(this.loadingOverlay);
+        }
+    }
+    
+    /**
+     * Shows the loading overlay
+     * @param {string} [message='Loading...'] - The loading message to display
+     */
+    showLoading(message = 'Loading...') {
+        if (!this.loadingOverlay) {
+            this.createLoadingOverlay();
+        }
+        
+        const text = this.loadingOverlay.querySelector('#loading-text');
+        const progress = this.loadingOverlay.querySelector('#loading-progress');
+        
+        if (text) text.textContent = message;
+        if (progress) progress.textContent = '';
+        
+        this.loadingOverlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+    
+    /**
+     * Updates the loading progress
+     * @param {number} progress - The progress percentage (0-100)
+     * @param {string} message - The progress message to display
+     */
+    updateLoading(progress, message) {
+        if (!this.loadingOverlay) return;
+        
+        const progressElement = this.loadingOverlay.querySelector('#loading-progress');
+        if (progressElement) {
+            progressElement.textContent = message || `Loading... ${Math.round(progress)}%`;
+        }
+    }
+    
+    /**
+     * Hides the loading overlay
+     */
+    hideLoading() {
+        if (this.loadingOverlay) {
+            this.loadingOverlay.style.display = 'none';
+            document.body.style.overflow = '';
+        }
     }
     
     /**

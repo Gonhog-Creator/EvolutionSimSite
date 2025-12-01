@@ -77,9 +77,16 @@ class JsTemperatureSystem {
     }
     
     getTemperature(x, y) {
+        // Return ambient temperature if system isn't initialized
+        if (!this.cells || !this.cells[y] || !this.cells[y][x]) {
+            return this.ambientTemp;
+        }
+        
+        // Check bounds
         if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
             return this.ambientTemp;
         }
+        
         return this.cells[y][x].temperature;
     }
     
@@ -150,18 +157,29 @@ export class TemperatureManager {
      * Update the temperature system
      */
     update() {
-        if (!this.temperatureSystem) return;
-        
-        const now = performance.now();
-        const deltaTime = now - this.lastUpdate;
-        
-        if (deltaTime >= this.updateInterval) {
-            this.temperatureSystem.update(deltaTime);
+        try {
+            if (!this.temperatureSystem) {
+                // Try to initialize if not already done
+                if (this.width && this.height) {
+                    this.initialize(this.width, this.height, this.ambientTemp);
+                }
+                return false;
+            }
+            
+            const now = performance.now();
+            if (now - this.lastUpdate < this.updateInterval) return false;
+            
             this.lastUpdate = now;
-            return true; // Indicate that an update occurred
+            
+            // Only update if the temperature system is properly initialized
+            if (this.temperatureSystem.update) {
+                return this.temperatureSystem.update(now - this.lastUpdate);
+            }
+            return false;
+        } catch (error) {
+            console.error('Error updating temperature system:', error);
+            return false;
         }
-        
-        return false;
     }
 
     /**
@@ -261,7 +279,91 @@ export class TemperatureManager {
      */
     setTemperature(x, y, temp) {
         if (this.temperatureSystem) {
-            this.temperatureSystem.setTemperature(x, y, temp);
+            // Clamp temperature to reasonable range
+            const clampedTemp = Math.max(-273.15, Math.min(1000, temp));
+            this.temperatureSystem.setTemperature(x, y, clampedTemp);
+        }
+    }
+
+    /**
+     * Gets the current temperature data for saving
+     * @returns {Object} Temperature data object
+     */
+    getTemperatureData() {
+        if (!this.temperatureSystem) {
+            logger.warn('Temperature system not initialized when getting temperature data');
+            return null;
+        }
+
+        try {
+            const data = {
+                width: this.temperatureSystem.width,
+                height: this.temperatureSystem.height,
+                ambientTemp: this.temperatureSystem.ambientTemp,
+                cells: []
+            };
+
+            // Only save the temperature values, not the entire cell objects
+            for (let y = 0; y < this.temperatureSystem.height; y++) {
+                const row = [];
+                for (let x = 0; x < this.temperatureSystem.width; x++) {
+                    row.push(this.temperatureSystem.getTemperature(x, y));
+                }
+                data.cells.push(row);
+            }
+
+            logger.log('Saved temperature data:', {
+                width: data.width,
+                height: data.height,
+                cells: `${data.cells.length}x${data.cells[0]?.length || 0}`
+            });
+
+            return data;
+        } catch (error) {
+            logger.error('Error getting temperature data:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Sets the temperature data from a saved state
+     * @param {Object} data - Temperature data object from save
+     */
+    setTemperatureData(data) {
+        if (!data || !data.cells || !data.width || !data.height) {
+            logger.warn('Invalid temperature data format:', data);
+            return false;
+        }
+
+        try {
+            logger.log('Setting temperature data:', {
+                width: data.width,
+                height: data.height,
+                cells: `${data.cells.length}x${data.cells[0]?.length || 0}`
+            });
+
+            // Initialize the temperature system if needed
+            if (!this.temperatureSystem || 
+                this.temperatureSystem.width !== data.width || 
+                this.temperatureSystem.height !== data.height) {
+                
+                this.initialize(data.width, data.height, data.ambientTemp || 20);
+            }
+
+            // Apply the saved temperatures
+            for (let y = 0; y < data.height; y++) {
+                for (let x = 0; x < data.width; x++) {
+                    if (y < data.cells.length && x < data.cells[y].length) {
+                        this.setTemperature(x, y, data.cells[y][x]);
+                    }
+                }
+            }
+
+            logger.log('Successfully loaded temperature data');
+            return true;
+        } catch (error) {
+            logger.error('Error setting temperature data:', error);
+            return false;
         }
     }
 }
