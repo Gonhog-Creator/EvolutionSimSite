@@ -11,6 +11,20 @@ export class UIManager {
         this.lastUpdateTime = 0;
         this.debugOverlay = null;
         
+        // Initialize key handlers
+        this.keyHandlers = {
+            'Escape': this.handleEscapeKey.bind(this),
+            't': this.toggleTemperatureOverlay.bind(this),
+            'T': this.toggleTemperatureOverlay.bind(this)
+        };
+        
+        // Initialize empty admin key bindings
+        this.adminKeyHandlers = {};
+        
+        // Bind methods
+        this.handleEscapeKey = this.handleEscapeKey.bind(this);
+        this.toggleTemperatureOverlay = this.toggleTemperatureOverlay.bind(this);
+        
         // Store saveManager reference with error handling
         if (app && app.saveManager) {
             this.saveManager = app.saveManager;
@@ -38,6 +52,89 @@ export class UIManager {
         }
     }
 
+    /**
+     * Handles keyboard input
+     * @param {KeyboardEvent} event - The keyboard event
+     */
+    handleKeyEvent(event) {
+        const { key } = event;
+        
+        // Check if we have a handler for this key
+        if (this.app.isAdmin && this.adminKeyHandlers[key]) {
+            // Prevent default for admin keys
+            event.preventDefault();
+            event.stopPropagation();
+            this.adminKeyHandlers[key]();
+        } else if (this.keyHandlers[key]) {
+            // For non-admin keys, only prevent default if the handler returns true
+            const shouldPreventDefault = this.keyHandlers[key](event);
+            if (shouldPreventDefault) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        }
+    }
+    
+    /**
+     * Handles Escape key press
+     */
+    handleEscapeKey() {
+        // Check if the pause menu is currently visible
+        const pauseMenu = document.getElementById('pause-menu');
+        const isPauseMenuVisible = pauseMenu && !pauseMenu.classList.contains('hidden');
+        
+        if (this.app.isPaused) {
+            if (isPauseMenuVisible) {
+                // If menu is visible, hide it and resume the game
+                this.hidePauseMenu();
+                this.app.resumeSimulation();
+            } else {
+                // If menu is not visible, show it
+                this.showPauseMenu();
+            }
+        } else {
+            // If game is running, pause it and show the menu
+            this.app.togglePause(true);
+        }
+        
+        return true; // Always prevent default for Escape key
+    }
+    
+    /**
+     * Toggles temperature overlay
+     */
+    toggleTemperatureOverlay() {
+        this.app.toggleTemperatureOverlay();
+        return true;
+    }
+    
+    /**
+     * Toggles pause state
+     */
+    togglePause() {
+        this.app.togglePause();
+        return true;
+    }
+    
+    /**
+     * Toggles statistics overlay
+     */
+    toggleStats() {
+        // Implement stats toggle
+        return true;
+    }
+    
+    /**
+     * Toggles debug overlay
+     */
+    toggleDebug() {
+        if (this.debugOverlay) {
+            const isVisible = this.debugOverlay.style.display !== 'none';
+            this.debugOverlay.style.display = isVisible ? 'none' : 'block';
+        }
+        return true;
+    }
+    
     initialize() {
         this.initializeElements();
         this.setupButtonListeners();
@@ -639,7 +736,77 @@ export class UIManager {
     
     // Pause Menu Functions
     onResumeClick() {
-        this.app.resumeSimulation();
+        this.resumeSimulation();
+    }
+    
+    /**
+     * Toggles the pause menu visibility
+     */
+    togglePauseMenu() {
+        const pauseMenu = document.getElementById('pause-menu');
+        if (pauseMenu && !pauseMenu.classList.contains('hidden')) {
+            this.hidePauseMenu();
+        } else {
+            this.showPauseMenu();
+        }
+    }
+    
+    /**
+     * Pauses the simulation
+     * @param {boolean} showMenu - Whether to show the pause menu
+     */
+    pauseSimulation(showMenu = false) {
+        if (!this.app.isRunning) return;
+        
+        // Pause the simulation
+        if (window.Module) {
+            if (typeof window.Module._emscripten_pause_main_loop === 'function') {
+                window.Module._emscripten_pause_main_loop();
+            } else if (window.Module.asm && window.Module.asm._emscripten_pause_main_loop) {
+                window.Module.asm._emscripten_pause_main_loop();
+            }
+        }
+        
+        // Update app state
+        this.app.isPaused = true;
+        
+        // Show UI elements
+        this.showPauseBanner();
+        if (showMenu) {
+            this.showPauseMenu();
+        }
+        
+        logger.log('Simulation paused' + (showMenu ? ' (with menu)' : ''));
+    }
+    
+    /**
+     * Resumes the simulation
+     */
+    resumeSimulation() {
+        if (!this.app.isPaused) return;
+        
+        // Resume the simulation
+        if (window.Module) {
+            if (typeof window.Module._emscripten_resume_main_loop === 'function') {
+                window.Module._emscripten_resume_main_loop();
+            } else if (window.Module.asm && window.Module.asm._emscripten_resume_main_loop) {
+                window.Module.asm._emscripten_resume_main_loop();
+            }
+        }
+        
+        // Update app state
+        this.app.isPaused = false;
+        
+        // Hide UI elements
+        this.hidePauseMenu();
+        this.hidePauseBanner();
+        
+        // Force update the hovered cell and tooltip
+        if (this.app.selectionManager) {
+            this.app.selectionManager.forceUpdateHoveredCell();
+        }
+        
+        logger.log('Simulation resumed');
     }
     
     async onSaveAndQuitClick() {
@@ -687,43 +854,5 @@ export class UIManager {
     }
     
     // Game State UI Functions
-    togglePause() {
-        if (!this.app.isRunning) return;
-        
-        this.app.isPaused = !this.app.isPaused;
-        
-        if (this.app.isPaused) {
-            // Pause the simulation
-            if (window.Module) {
-                if (typeof window.Module._emscripten_pause_main_loop === 'function') {
-                    window.Module._emscripten_pause_main_loop();
-                } else if (window.Module.asm && window.Module.asm._emscripten_pause_main_loop) {
-                    window.Module.asm._emscripten_pause_main_loop();
-                }
-            }
-            
-            // Show pause menu
-            this.showPauseMenu();
-            
-            logger.log('Simulation paused');
-        } else {
-            this.resumeSimulation();
-        }
-    }
-    
-    resumeSimulation() {
-        if (window.Module) {
-            if (typeof window.Module._emscripten_resume_main_loop === 'function') {
-                window.Module._emscripten_resume_main_loop();
-            } else if (window.Module.asm && window.Module.asm._emscripten_resume_main_loop) {
-                window.Module.asm._emscripten_resume_main_loop();
-            }
-        }
-        
-        // Hide pause menu
-        this.hidePauseMenu();
-        
-        this.app.isPaused = false;
-        logger.log('Simulation resumed');
-    }
+    // Moved to above onSaveAndQuitClick
 }

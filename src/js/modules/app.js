@@ -47,21 +47,28 @@ class App {
         this.diagChannel = null;
         this.setupDiagnostics();
         
-        // Bind keyboard events - use capture phase to ensure we get the event first
-        this.handleKeyDown = this.handleKeyDown.bind(this);
-        this.handleKeyDownCapture = (e) => {
-            // Specifically handle Escape key in capture phase
-            if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
-                this.handleKeyDown(e);
-                // Prevent other handlers from seeing this event
-                e.stopImmediatePropagation();
-                e.preventDefault();
-                return false;
+        // Set up key event handling through UIManager
+        this.handleKeyDown = (e) => {
+            // Check if main menu is visible
+            const mainMenu = document.getElementById('main-menu');
+            if (mainMenu && mainMenu.style.display !== 'none') {
+                // Don't process key events when main menu is visible
+                return;
+            }
+            
+            // Delegate to UIManager for all key handling
+            this.uiManager.handleKeyEvent(e);
+            
+            // Special handling for spacebar to toggle pause without showing menu
+            if (e.code === 'Space' && this.isRunning) {
+                this.togglePause(false); // Don't show menu, just show banner
+                e.preventDefault(); // Prevent scrolling the page
+                e.stopPropagation(); // Stop event bubbling
             }
         };
-        // Add both capture and bubble phase listeners for robustness
-        document.addEventListener('keydown', this.handleKeyDownCapture, true); // Capture phase
-        document.addEventListener('keydown', this.handleKeyDown, false); // Bubble phase
+        
+        // Add event listener for keydown events
+        document.addEventListener('keydown', this.handleKeyDown);
         
         // Initialize render method
         this.render = this.render.bind(this);
@@ -374,15 +381,13 @@ class App {
                 this.selectionManager.isAdmin = true;
             }
             
-            // Add admin keydown listener
-            document.addEventListener('keydown', this.handleAdminKeyDown.bind(this));
+            // Admin key handling is now managed by UIManager
         } else {
             this.adminContainer.style.display = 'none';
             this.adminIndicator.style.display = 'none';
             this.adminBrushButton.style.display = 'none';
             
-            // Remove admin keydown listener
-            document.removeEventListener('keydown', this.handleAdminKeyDown.bind(this));
+            // Admin key handling is now managed by UIManager
             
             // Reset selection manager admin state
             if (this.selectionManager) {
@@ -393,19 +398,25 @@ class App {
     }
     
     /**
-     * Handles keyboard shortcuts when in admin mode
-     * @param {KeyboardEvent} event - The keyboard event
+     * Sets the current brush mode
+     * @param {string} mode - The brush mode to set
      */
-    handleAdminKeyDown(event) {
-        if (!this.isAdmin) return;
-        
-        // Example: Toggle temperature overlay with T
-        if (event.key.toLowerCase() === 't') {
+    setBrushMode(mode) {
+        if (this.selectionManager) {
+            this.selectionManager.setBrushMode(mode);
+        }
+    }
+
+    /**
+     * Toggles the temperature overlay
+     */
+    toggleTemperatureOverlay() {
+        if (this.temperatureManager) {
             this.showTemperature = !this.showTemperature;
             logger.log(`Temperature overlay ${this.showTemperature ? 'enabled' : 'disabled'}`);
+            return true;
         }
-        
-        // Add more admin shortcuts as needed
+        return false;
     }
 
     waitForWasmReady() {
@@ -495,14 +506,6 @@ class App {
 
     hideMainMenu() {
         this.uiManager.hideMainMenu();
-    }
-
-    showPauseMenu() {
-        this.uiManager.showPauseMenu();
-    }
-
-    hidePauseMenu() {
-        this.uiManager.hidePauseMenu();
     }
 
     getSaveName() {
@@ -835,55 +838,19 @@ class App {
  */
 togglePause(showMenu = false) {
     if (!this.isRunning) return;
-
-    // If already paused, handle menu toggling or resume
+    
+    // Delegate to UIManager for all pause/resume functionality
     if (this.isPaused) {
         if (showMenu) {
-            // ESC key - toggle menu visibility
-            if (this.uiManager) {
-                if (this.uiManager.elements.pauseMenu && 
-                    !this.uiManager.elements.pauseMenu.classList.contains('hidden')) {
-                    // If menu is visible, hide it but keep paused
-                    this.uiManager.hidePauseMenu();
-                } else {
-                    // If menu is hidden, show it
-                    this.uiManager.showPauseMenu();
-                }
-            }
+            // Toggle menu visibility through UIManager
+            this.uiManager.togglePauseMenu();
         } else {
             // Spacebar - resume the game
-            this.resumeSimulation();
+            this.uiManager.resumeSimulation();
         }
-        return;
-    }
-
-    // If not paused, pause the game
-    this.isPaused = true;
-
-    // Pause the simulation
-    if (this.isPaused) {
-        // Pause the simulation
-        if (window.Module) {
-            if (typeof window.Module._emscripten_pause_main_loop === 'function') {
-                window.Module._emscripten_pause_main_loop();
-            } else if (window.Module.asm && window.Module.asm._emscripten_pause_main_loop) {
-                window.Module.asm._emscripten_pause_main_loop();
-            }
-        }
-
-        // Show pause banner
-        if (this.uiManager) {
-            this.uiManager.showPauseBanner && this.uiManager.showPauseBanner();
-
-            // Show pause menu if requested (e.g., from ESC key)
-            if (showMenu && this.uiManager.showPauseMenu) {
-                this.uiManager.showPauseMenu();
-            }
-        }
-
-        logger.log('Simulation paused' + (showMenu ? ' (with menu)' : ''));
     } else {
-        this.resumeSimulation();
+        // Pause the game and show menu if requested
+        this.uiManager.pauseSimulation(showMenu);
     }
 }
 
@@ -1096,68 +1063,7 @@ async initializeSimulationGrid() {
         }
         
         logger.log('Successfully returned to main menu');
-}
-
-/**
- * Handles keyboard input
- * @param {KeyboardEvent} event - The keyboard event
- */
-handleKeyDown(event) {
-    // Check for Escape key first
-    if (event.key === 'Escape' || event.key === 'Esc' || event.keyCode === 27) {
-        // Only handle this if we're in the game and not in any modal
-        if (this.isRunning && this.uiManager) {
-            const isAnyModalVisible = 
-                (this.uiManager.elements.newGameModal && !this.uiManager.elements.newGameModal.classList.contains('hidden')) ||
-                (this.uiManager.elements.saveManager && !this.uiManager.elements.saveManager.classList.contains('hidden'));
-            
-            if (!isAnyModalVisible) {
-                if (this.isPaused) {
-                    // If already paused, just toggle the menu visibility
-                    if (this.uiManager.elements.pauseMenu) {
-                        if (!this.uiManager.elements.pauseMenu.classList.contains('hidden')) {
-                            // Menu is visible - hide it and resume the game
-                            this.uiManager.hidePauseMenu();
-                            this.resumeSimulation();
-                        } else {
-                            // Menu is hidden - show it and ensure game is paused
-                            this.uiManager.showPauseMenu();
-                            if (!this.isPaused) {
-                                this.togglePause(true);
-                            }
-                        }
-                    }
-                } else {
-                    // If not paused, pause and show menu
-                    this.togglePause(true);
-                }
-                event.preventDefault();
-                event.stopPropagation();
-                return;
-            }
-        }
-        // Always prevent default for Escape key to avoid browser-specific behaviors
-        event.preventDefault();
-        event.stopPropagation();
-        return;
     }
-    
-    // Only handle other keys if the game is running
-    if (!this.isRunning) return;
-    
-    // Toggle pause with spacebar (without menu)
-    if (event.code === 'Space') {
-        this.togglePause(false); // Don't show menu, just show banner
-        event.preventDefault(); // Prevent scrolling the page
-        event.stopPropagation(); // Stop event bubbling
-        return;
-    }
-    
-    // Prevent default and stop propagation for other keys
-    event.preventDefault();
-    event.stopPropagation();
-    return false;
-}
 
     /**
      * Draws the simulation grid
@@ -1171,22 +1077,22 @@ handleKeyDown(event) {
             if (!ctx) {
                 const canvas = document.querySelector('canvas');
                 if (!canvas) return false;
-                
+
                 ctx = canvas.getContext('2d');
                 if (!ctx) return false;
-                
+
                 width = width || canvas.width;
                 height = height || canvas.height;
-                
+
                 // Clear the canvas
                 ctx.clearRect(0, 0, width, height);
             }
-            
+
             // Set grid style
             const cellSize = this.grid?.cellSize || 20;
             ctx.strokeStyle = this.grid ? '#1a1a1a' : '#333333';
             ctx.lineWidth = this.grid ? 1 : 0.5;
-            
+
             // Draw vertical grid lines
             for (let x = 0; x <= width; x += cellSize) {
                 ctx.beginPath();
@@ -1194,7 +1100,7 @@ handleKeyDown(event) {
                 ctx.lineTo(x, height);
                 ctx.stroke();
             }
-            
+
             // Draw horizontal grid lines
             for (let y = 0; y <= height; y += cellSize) {
                 ctx.beginPath();
@@ -1202,9 +1108,9 @@ handleKeyDown(event) {
                 ctx.lineTo(width, y);
                 ctx.stroke();
             }
-            
+
             return true;
-            
+
         } catch (error) {
             logger.error('Error drawing grid:', error);
             throw error;
@@ -1219,13 +1125,13 @@ handleKeyDown(event) {
     async resetSimulation(saveName = 'My Game') {
         try {
             logger.log(`Resetting simulation with save name: ${saveName}`);
-            
+
             // Stop any running simulation
             if (this.currentMainLoop) {
                 window.cancelAnimationFrame(this.currentMainLoop);
                 this.currentMainLoop = null;
             }
-            
+
             // Reset game state
             this.gameState = {
                 isRunning: false,
@@ -1234,18 +1140,19 @@ handleKeyDown(event) {
                 createdAt: new Date().toISOString(),
                 lastSaved: null
             };
-            
+
             // Reinitialize the grid
             await this.initializeSimulationGrid();
-            
+
             logger.log('Simulation reset successfully', 'info');
             return true;
-            
+
         } catch (error) {
             logger.error('Failed to reset simulation:', error);
             throw error;
         }
     }
 }
+
 // Export a singleton instance
 export const app = new App();
