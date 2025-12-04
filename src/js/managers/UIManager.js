@@ -1,4 +1,4 @@
-import { logger } from './logger.js';
+import { logger } from '../utils/logger.js';
 
 export class UIManager {
     constructor(app) {
@@ -87,14 +87,14 @@ export class UIManager {
             if (isPauseMenuVisible) {
                 // If menu is visible, hide it and resume the game
                 this.hidePauseMenu();
-                this.app.resumeSimulation();
+                this.resumeSimulation();
             } else {
                 // If menu is not visible, show it
                 this.showPauseMenu();
             }
         } else {
             // If game is running, pause it and show the menu
-            this.app.togglePause(true);
+            this.togglePause(true);
         }
         
         return true; // Always prevent default for Escape key
@@ -104,15 +104,36 @@ export class UIManager {
      * Toggles temperature overlay
      */
     toggleTemperatureOverlay() {
-        this.app.toggleTemperatureOverlay();
+        if (this.app.temperatureManager) {
+            this.app.temperatureManager.toggleTemperatureOverlay();
+        } else {
+            logger.warn('Temperature manager not available');
+        }
         return true;
     }
     
     /**
-     * Toggles pause state
+     * Toggles the pause state of the simulation
+     * @param {boolean} showMenu - Whether to show the pause menu (default: false)
+     * @returns {boolean} Always returns true to indicate the event was handled
      */
-    togglePause() {
-        this.app.togglePause();
+    togglePause(showMenu = false) {
+        if (!this.app.isRunning) return true;
+        
+        // Handle pause/resume based on current state
+        if (this.app.isPaused) {
+            if (showMenu) {
+                // Toggle menu visibility
+                this.togglePauseMenu();
+            } else {
+                // Spacebar - resume the game
+                this.resumeSimulation();
+            }
+        } else {
+            // Pause the game and show menu if requested
+            this.pauseSimulation(showMenu);
+        }
+        
         return true;
     }
     
@@ -431,7 +452,7 @@ export class UIManager {
         }
         
         if (loadGameBtn) {
-            loadGameBtn.addEventListener('click', () => this.app.showSaveManager());
+            loadGameBtn.addEventListener('click', () => this.showSaveManager());
         }
         
         if (settingsBtn) {
@@ -440,23 +461,23 @@ export class UIManager {
         
         // Pause menu buttons
         if (resumeBtn) {
-            resumeBtn.addEventListener('click', () => this.app.onResumeClick());
+            resumeBtn.addEventListener('click', () => this.onResumeClick());
         }
         
         if (saveGameBtn) {
-            saveGameBtn.addEventListener('click', () => this.app.onSaveGameClick());
+            saveGameBtn.addEventListener('click', () => this.onSaveGameClick());
         }
         
         if (saveQuitBtn) {
-            saveQuitBtn.addEventListener('click', () => this.app.onSaveAndQuitClick());
+            saveQuitBtn.addEventListener('click', () => this.onSaveAndQuitClick());
         }
         
         if (settingsMenuBtn) {
-            settingsMenuBtn.addEventListener('click', () => this.app.showSettings());
+            settingsMenuBtn.addEventListener('click', () => this.showSettings());
         }
         
         if (quitToMenuBtn) {
-            quitToMenuBtn.addEventListener('click', () => this.app.onQuitToMenuClick());
+            quitToMenuBtn.addEventListener('click', () => this.onQuitToMenuClick());
         }
         
         // Note: ESC key handling is now in App.handleKeyDown
@@ -882,6 +903,11 @@ export class UIManager {
         // Update app state
         this.app.isPaused = true;
         
+        // Hide any visible tooltips
+        if (this.app.selectionManager) {
+            this.app.selectionManager.hideTooltip();
+        }
+        
         // Show UI elements
         this.showPauseBanner();
         if (showMenu) {
@@ -921,46 +947,130 @@ export class UIManager {
         logger.log('Simulation resumed');
     }
     
+    /**
+     * Handles the Save Game button click from the pause menu
+     * @returns {Promise<Object|null>} The saved game data or null if save failed
+     */
+    async onSaveGameClick() {
+        logger.log('Save Game clicked');
+        
+        try {
+            this.showLoading('Saving game...');
+            
+            if (!this.app.gameState) {
+                throw new Error('No game state to save');
+            }
+            
+            // If we have an existing save, use its ID to overwrite
+            let saveId = null;
+            if (this.app.gameState.saveId) {
+                saveId = this.app.gameState.saveId;
+                logger.log(`Updating existing save with ID: ${saveId}`);
+            }
+            
+            // Save the game with the current game state
+            const savedGame = await this.app.saveManager.saveGame(
+                this.app.gameState,
+                this.app.gameState.saveName || 'My Game',
+                saveId
+            );
+            
+            if (savedGame) {
+                // Update the game state with the save ID if this is a new save
+                if (!this.app.gameState.saveId && savedGame.id) {
+                    this.app.gameState.saveId = savedGame.id;
+                }
+                
+                this.showNotification('Game saved successfully!');
+                logger.log('Game saved successfully:', savedGame);
+                return savedGame;
+            } else {
+                throw new Error('Failed to save game');
+            }
+        } catch (error) {
+            logger.error('Error saving game:', error);
+            this.showNotification('Failed to save game. Please try again.');
+            throw error;
+        } finally {
+            this.hideLoading();
+        }
+    }
+    
+    /**
+     * Handles the Save & Quit button click from the pause menu
+     * Saves the current game and returns to the main menu
+     */
     async onSaveAndQuitClick() {
         logger.log('Save & Quit clicked');
         
         try {
             // First save the game
-            await this.app.onSaveGameClick();
+            const savedGame = await this.onSaveGameClick();
             
-            // Small delay to show the save notification
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            // Then quit to menu
-            this.onQuitToMenuClick();
+            if (savedGame) {
+                // Only quit if save was successful, and prevent reset since we just saved
+                await this.onQuitToMenuClick(true);
+            } else {
+                throw new Error('Failed to save game');
+            }
         } catch (error) {
             logger.error('Error during save & quit:', error);
-            this.showNotification('Error saving game. Changes may not be saved.');
+            this.showNotification('Failed to save game. Your progress may not be saved.');
+            throw error;
         }
     }
     
-    async onQuitToMenuClick() {
+    /**
+     * Handles the Quit to Menu button click from the pause menu
+     * @param {boolean} [preventReset=false] - If true, skips resetting the simulation
+     * @returns {Promise<boolean>} True if the operation was successful
+     */
+    async onQuitToMenuClick(preventReset = false) {
+        logger.log('Quitting to main menu...', { preventReset });
+        
         try {
-            logger.log('Quitting to main menu...');
+            // Only reset if not prevented
+            if (!preventReset && this.app.resetSimulation) {
+                await this.app.resetSimulation();
+            }
             
-            // Reset the simulation
-            await this.app.resetSimulation();
+            // Update game state
+            if (this.app) {
+                this.app.isRunning = false;
+                this.app.isPaused = false;
+            }
             
-            // Show main menu and hide game container
+            // Update UI
+            this.hidePauseBanner();
+            this.hidePauseMenu();
+            this.hideDebugOverlay();
             this.showMainMenu();
             
-            // Hide the game container
+            // Hide the game container if it exists
             if (this.elements.gameContainer) {
                 this.elements.gameContainer.classList.add('hidden');
             }
             
-            // Reset states
-            this.app.isRunning = false;
-            this.app.isPaused = false;
+            // Clean up tooltip and mouse events
+            if (this.app.selectionManager) {
+                // Hide the tooltip immediately
+                this.app.selectionManager.hideTooltip();
+                
+                // Clear any pending tooltip updates
+                if (this.app.selectionManager.tooltipTimeout) {
+                    clearTimeout(this.app.selectionManager.tooltipTimeout);
+                }
+                
+                // Reset hover state to prevent tooltip from reappearing
+                this.app.selectionManager.hoveredCell = null;
+                this.app.selectionManager.lastHoveredCell = null;
+            }
             
             logger.log('Successfully returned to main menu');
+            return true;
         } catch (error) {
             logger.error('Error during quit to menu:', error);
+            this.showNotification('Error returning to main menu');
             throw error;
         }
     }

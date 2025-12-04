@@ -1469,7 +1469,7 @@
                     }
 
                     // Handle other commands
-                    switch (cmdLower) {
+                    switch (cmd) {
                         case 'help':
                             showHelp();
                             return;
@@ -1493,6 +1493,7 @@
                     { name: 'help', description: 'Show this help message' },
                     { name: 'clear', description: 'Clear the console' },
                     { name: 'status', description: 'Show system status' },
+                    { name: 'set admin true|false', description: 'Enable/disable admin mode' },
                     { name: 'reload', description: 'Reload WebAssembly module' },
                     { name: 'benchmark', description: 'Run performance benchmarks' },
                     { name: 'test [type]', description: 'Run tests (webgl, wasm, all)' },

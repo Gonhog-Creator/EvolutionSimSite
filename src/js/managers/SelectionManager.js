@@ -1,4 +1,4 @@
-import { logger } from './logger.js';
+import { logger } from '../utils/logger.js';
 
 export class SelectionManager {
     constructor() {
@@ -202,8 +202,26 @@ export class SelectionManager {
     /**
      * Toggle brush size between 0 (single cell) and 2 (5x5 circle)
      */
+    /**
+     * Toggles the brush size between single cell and 5x5 circle
+     * @returns {number} The new brush size
+     */
     toggleBrushSize() {
         this.brushSize = this.brushSize === 0 ? 2 : 0;
+        logger.log(`Brush size toggled to ${this.brushSize === 0 ? '1x1' : '5x5 circle'}`);
+        return this.brushSize;
+    }
+    
+    /**
+     * Sets the admin state
+     * @param {boolean} isAdmin - Whether admin mode is enabled
+     */
+    setAdminState(isAdmin) {
+        this.isAdmin = !!isAdmin;
+        // Reset brush size when admin mode is disabled
+        if (!this.isAdmin) {
+            this.brushSize = 0;
+        }
     }
     /**
      * Handle document-level mouse up events
@@ -542,9 +560,9 @@ export class SelectionManager {
     render(ctx) {
         ctx.save();
         
-        // Draw hover effect if there's a hovered cell
+        // Draw hover effect if there's a hovered cell and we're in admin mode
         if (this.hoveredCell) {
-            const cells = this.isAdmin && this.brushSize > 0 ? 
+            const cells = this.brushSize > 0 ? 
                 this.getBrushCells(this.hoveredCell.x, this.hoveredCell.y) : 
                 [this.hoveredCell];
             

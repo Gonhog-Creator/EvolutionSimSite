@@ -1,4 +1,9 @@
-import { app } from './modules/app.js';
+import { app } from './core/App.js';
+import { WasmManager } from './utils/WasmManager.js';
+
+// Initialize WasmManager
+const wasmManager = new WasmManager();
+window.wasmManager = wasmManager; // Make available globally for debugging
 
 /**
  * Global error handler
@@ -74,60 +79,30 @@ const initApp = async () => {
     // Initialize the app
     await app.initialize();
     
-    // Set up WebAssembly event listeners
-    const setupWasmListeners = () => {
-      // Handle WebAssembly ready event
-      const onWasmReady = () => {
-        console.log('WASM ready event received');
-        updateProgress(90, 'Initializing simulation...');
-        
-        if (typeof app.onWasmReady === 'function') {
-          app.onWasmReady()
-            .then(() => {
-              updateProgress(100, 'Ready!');
-              // Hide loading indicator after a short delay
-              setTimeout(() => {
-                if (loadingIndicator) {
-                  loadingIndicator.classList.add('hidden');
-                }
-              }, 500);
-            })
-            .catch((error) => {
-              console.error('Error in onWasmReady:', error);
-              showError('Initialization Error', error?.message || 'Failed to initialize application');
-            });
+    // Initialize WebAssembly
+    updateProgress(30, 'Loading WebAssembly...');
+    
+    try {
+      // Initialize the WebAssembly module
+      await wasmManager.init();
+      updateProgress(90, 'Initializing simulation...');
+      
+      // Initialize the app with the WebAssembly module
+      if (typeof app.onWasmReady === 'function') {
+        await app.onWasmReady();
+      }
+      
+      updateProgress(100, 'Ready!');
+      // Hide loading indicator after a short delay
+      setTimeout(() => {
+        if (loadingIndicator) {
+          loadingIndicator.classList.add('hidden');
         }
-      };
-      
-      // Handle WebAssembly errors
-      const onWasmError = (event) => {
-        const error = event.detail || 'Unknown error';
-        console.error('WASM error:', error);
-        showError('WebAssembly Error', 'Failed to load WebAssembly module');
-        window.app?.logger?.error('Failed to load WebAssembly:', error);
-      };
-      
-      window.addEventListener('wasm-ready', onWasmReady);
-      window.addEventListener('wasm-error', onWasmError);
-      
-      // Cleanup function
-      return () => {
-        window.removeEventListener('wasm-ready', onWasmReady);
-        window.removeEventListener('wasm-error', onWasmError);
-      };
-    };
-    
-    // Set up WebAssembly listeners
-    const cleanup = setupWasmListeners();
-    
-    // Check if WebAssembly is already loaded
-    if (window.wasmReady && typeof app.onWasmReady === 'function') {
-      console.log('WebAssembly already loaded, initializing app...');
-      app.onWasmReady()
-        .catch(error => {
-          console.error('Error initializing WebAssembly:', error);
-          showError('Initialization Error', error?.message || 'Failed to initialize WebAssembly');
-        });
+      }, 500);
+    } catch (error) {
+      console.error('Error initializing WebAssembly:', error);
+      showError('WebAssembly Error', 'Failed to load WebAssembly module');
+      window.app?.logger?.error('Failed to load WebAssembly:', error);
     }
     
     // Set up reload button

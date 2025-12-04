@@ -1,0 +1,247 @@
+import { logger } from '../utils/logger.js';
+
+/**
+ * Game Engine class responsible for managing the game loop, timing, and core simulation.
+ * This is a skeleton implementation that provides the basic structure for a game engine.
+ * Extend and implement the methods as needed for your specific game requirements.
+ */
+class Engine {
+    constructor() {
+        // Core timing properties
+        this.lastRenderTime = 0;
+        this.deltaTime = 0;
+        this.accumulator = 0;
+        this.timestep = 1000 / 60; // 60 FPS target by default
+        
+        // Engine state
+        this.isRunning = false;
+        this.isPaused = false;
+        this.animationFrameId = null;
+        
+        // Simulation control
+        this.simulationSpeed = 1.0; // 1.0 = normal speed
+        this.minSpeed = 0.1;
+        this.maxSpeed = 10.0;
+        
+        // Callbacks - implement these in your game
+        this.updateCallback = null;
+        this.renderCallback = null;
+        
+        // Bind methods
+        this.gameLoop = this.gameLoop.bind(this);
+    }
+    
+    //#region Core Engine Methods
+    
+    /**
+     * Resets the simulation to its initial state
+     * @param {Object} options - Reset options
+     * @param {string} [options.saveName='My Game'] - Name of the save file
+     * @param {Object} [options.temperatureData] - Optional temperature data to preserve
+     * @param {Object} [options.gridDimensions] - Optional grid dimensions to preserve
+     * @returns {Promise<boolean>} True if reset was successful
+     */
+    async resetSimulation({ saveName = 'My Game', temperatureData = null, gridDimensions = null } = {}) {
+        try {
+            logger.log(`Resetting simulation with save name: ${saveName}`);
+
+            // Stop the current simulation if running
+            if (this.isRunning) {
+                this.stop();
+            }
+
+            // Reset engine state
+            this.isRunning = false;
+            this.isPaused = false;
+            
+            // Reset timing
+            this.lastRenderTime = 0;
+            this.deltaTime = 0;
+            this.accumulator = 0;
+
+            // Reset simulation speed to default
+            this.simulationSpeed = 1.0;
+
+            logger.log('Engine reset successfully');
+            return true;
+
+        } catch (error) {
+            logger.error('Failed to reset engine:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * Initialize the game engine with required callbacks
+     * @param {Function} updateCallback - Called each frame to update game state
+     * @param {Function} renderCallback - Called each frame to render the game
+     * @param {Object} [options] - Additional engine options
+     */
+    initialize(updateCallback, renderCallback, options = {}) {
+        // Store callbacks
+        this.updateCallback = updateCallback;
+        this.renderCallback = renderCallback;
+        
+        // Apply any options
+        if (options.fps) {
+            this.timestep = 1000 / options.fps;
+        }
+        
+        logger.log(`Engine initialized with ${1000/this.timestep} FPS target`);
+        return this;
+    }
+    
+    /**
+     * Start the game engine and begin the game loop
+     */
+    start() {
+        if (this.isRunning) return this;
+        
+        this.isRunning = true;
+        this.isPaused = false;
+        this.lastRenderTime = performance.now();
+        
+        logger.log('Engine started');
+        this.animationFrameId = requestAnimationFrame(this.gameLoop);
+        return this;
+    }
+    
+    /**
+     * Stop the game engine and clean up resources
+     */
+    stop() {
+        if (!this.isRunning) return this;
+        
+        this.isRunning = false;
+        if (this.animationFrameId) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
+        
+        logger.log('Engine stopped');
+        return this;
+    }
+    
+    //#endregion
+    
+    //#region Control Methods
+    
+    /**
+     * Pause the simulation
+     */
+    pause() {
+        if (!this.isRunning || this.isPaused) return this;
+        
+        this.isPaused = true;
+        logger.log('Engine paused');
+        return this;
+    }
+    
+    /**
+     * Resume the simulation
+     */
+    resume() {
+        if (!this.isPaused || !this.isRunning) return this;
+        
+        this.isPaused = false;
+        this.lastRenderTime = performance.now(); // Reset timing to avoid large delta after pause
+        logger.log('Engine resumed');
+        return this;
+    }
+    
+    /**
+     * Toggle pause state
+     */
+    togglePause() {
+        return this.isPaused ? this.resume() : this.pause();
+    }
+    
+    /**
+     * Set the simulation speed multiplier
+     * @param {number} speed - Speed multiplier (0.1 to 10.0)
+     */
+    setSimulationSpeed(speed) {
+        this.simulationSpeed = Math.max(this.minSpeed, Math.min(this.maxSpeed, speed));
+        logger.log(`Simulation speed set to ${this.simulationSpeed}x`);
+        return this;
+    }
+    
+    //#endregion
+    
+    //#region Internal Methods
+    
+    /**
+     * Main game loop - called by requestAnimationFrame
+     * @private
+     * @param {number} timestamp - Current timestamp from requestAnimationFrame
+     */
+    gameLoop(timestamp) {
+        if (!this.isRunning) return;
+        
+        // Calculate delta time in seconds
+        this.deltaTime = (timestamp - this.lastRenderTime) / 1000;
+        this.lastRenderTime = timestamp;
+        
+        // Update game state if not paused
+        if (!this.isPaused) {
+            this._update(this.deltaTime);
+        }
+        
+        // Always render, even when paused
+        this._render(this.deltaTime);
+        
+        // Continue the loop
+        this.animationFrameId = requestAnimationFrame(this.gameLoop);
+    }
+    
+    /**
+     * Internal update handler with fixed timestep
+     * @private
+     * @param {number} deltaTime - Time since last frame in seconds
+     */
+    _update(deltaTime) {
+        // Apply simulation speed to delta time
+        const scaledDelta = deltaTime * this.simulationSpeed;
+        
+        // Fixed timestep update
+        this.accumulator += scaledDelta;
+        while (this.accumulator >= this.timestep) {
+            if (this.updateCallback) {
+                this.updateCallback(this.timestep);
+            }
+            this.accumulator -= this.timestep;
+        }
+    }
+    
+    /**
+     * Internal render handler
+     * @private
+     * @param {number} deltaTime - Time since last frame in milliseconds
+     */
+    async _render(deltaTime) {
+        try {
+            // Get canvas context
+            const canvas = document.querySelector('canvas');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Call the render callback if provided
+            if (this.renderCallback) {
+                await this.renderCallback(deltaTime, this.accumulator / this.timestep, ctx);
+            }
+        } catch (error) {
+            logger.error('Error in render loop:', error);
+            throw error;
+        }
+    }
+    
+    //#endregion
+}
+
+// Export the Engine class
+export { Engine };

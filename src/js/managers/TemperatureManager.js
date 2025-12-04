@@ -1,4 +1,4 @@
-import { logger } from './logger.js';
+import { logger } from '../utils/logger.js';
 
 // JavaScript implementation of the temperature system
 class JsTemperatureSystem {
@@ -144,7 +144,9 @@ export class TemperatureManager {
         try {
             // Use the JavaScript implementation
             this.temperatureSystem = new JsTemperatureSystem(width, height, ambientTemp);
-            this.useWasm = false;
+            this.width = width;
+            this.height = height;
+            this.ambientTemp = ambientTemp;
             this.lastUpdate = performance.now();
             logger.log('Temperature system (JS) initialized');
         } catch (error) {
@@ -180,6 +182,30 @@ export class TemperatureManager {
             console.error('Error updating temperature system:', error);
             return false;
         }
+    }
+
+    /**
+     * Toggles the temperature overlay on/off
+     */
+    toggleTemperatureOverlay() {
+        this.showTemperature = !this.showTemperature;
+        logger.log(`Temperature overlay ${this.showTemperature ? 'enabled' : 'disabled'}`);
+        
+        // If enabling, make sure temperature system is initialized
+        if (this.showTemperature && !this.temperatureSystem) {
+            logger.warn('Temperature system not initialized. Call initialize() first.');
+            return false;
+        }
+        
+        return this.showTemperature;
+    }
+    
+    /**
+     * Gets the current temperature overlay state
+     * @returns {boolean} True if temperature overlay is enabled
+     */
+    isTemperatureOverlayEnabled() {
+        return this.showTemperature;
     }
 
     /**
