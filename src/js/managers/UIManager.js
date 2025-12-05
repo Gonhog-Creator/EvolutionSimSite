@@ -118,23 +118,30 @@ export class UIManager {
      * @returns {boolean} Always returns true to indicate the event was handled
      */
     togglePause(showMenu = false) {
-        if (!this.app.isRunning) return true;
+        logger.log(`UIManager togglePause called, showMenu=${showMenu}, app.isRunning=${this.app?.isRunning}, app.isPaused=${this.app?.isPaused}`);
         
-        // Handle pause/resume based on current state
-        if (this.app.isPaused) {
-            if (showMenu) {
-                // Toggle menu visibility
-                this.togglePauseMenu();
-            } else {
-                // Spacebar - resume the game
-                this.resumeSimulation();
-            }
-        } else {
-            // Pause the game and show menu if requested
-            this.pauseSimulation(showMenu);
+        if (!this.app || !this.app.isRunning) {
+            logger.warn('Cannot toggle pause: app not running or not initialized');
+            return true;
         }
         
-        return true;
+        try {
+            // Toggle the pause state through the app
+            if (this.app.togglePause) {
+                this.app.togglePause(showMenu);
+            } else {
+                // Fallback if togglePause is not available
+                if (this.app.isPaused) {
+                    this.resumeSimulation();
+                } else {
+                    this.pauseSimulation(showMenu);
+                }
+            }
+            return true;
+        } catch (error) {
+            logger.error('Error in togglePause:', error);
+            return true;
+        }
     }
     
     /**
@@ -372,6 +379,7 @@ export class UIManager {
             pauseBanner: document.getElementById('pause-banner'),
             resumeBtn: document.getElementById('resume-btn'),
             saveGameBtn: document.getElementById('save-game-btn'),
+            loadGameBtnPause: document.getElementById('load-game-btn-pause'),
             saveQuitBtn: document.getElementById('save-quit-btn'),
             settingsMenuBtn: document.getElementById('settings-menu-btn'),
             quitToMenuBtn: document.getElementById('quit-to-menu-btn')
@@ -466,6 +474,11 @@ export class UIManager {
         
         if (saveGameBtn) {
             saveGameBtn.addEventListener('click', () => this.onSaveGameClick());
+        }
+        
+        // Add event listener for the Load Game button in pause menu
+        if (this.elements.loadGameBtnPause) {
+            this.elements.loadGameBtnPause.addEventListener('click', () => this.onLoadGameClick());
         }
         
         if (saveQuitBtn) {
@@ -678,21 +691,64 @@ export class UIManager {
         return this.elements.saveNameInput ? this.elements.saveNameInput.value.trim() : '';
     }
 
+    /**
+     * Handles the Load Game button click from the pause menu
+     * Shows the save manager and sets up a callback to handle the loaded save
+     */
+    onLoadGameClick() {
+        logger.log('Load Game clicked from pause menu');
+        
+        // Show the save manager
+        this.showSaveManager();
+        
+        // Set up a one-time listener for when a save is loaded
+        const onSaveLoaded = (saveData) => {
+            if (saveData) {
+                logger.log('Save loaded successfully, hiding pause menu');
+                // Hide the pause menu when a save is loaded
+                this.hidePauseMenu();
+                this.resumeSimulation();
+            }
+        };
+        
+        // Store the callback on the save manager
+        if (this.saveManager) {
+            this.saveManager.onSaveLoaded = onSaveLoaded;
+            logger.log('Save loaded callback registered');
+        } else {
+            logger.error('Save manager not available in onLoadGameClick');
+        }
+    }
+    
     // Save Manager UI Methods
     showSaveManager() {
+        console.log('showSaveManager called');
         const saveManagerModal = document.getElementById('save-manager-modal');
         const closeBtn = document.getElementById('close-save-manager');
         
-        if (!saveManagerModal || !closeBtn) {
-            console.error('Save manager modal elements not found');
+        if (!saveManagerModal) {
+            console.error('Save manager modal not found');
             return;
         }
         
-        // Show the modal
-        saveManagerModal.classList.remove('hidden');
+        if (!closeBtn) {
+            console.error('Close button not found');
+            return;
+        }
+        
+        console.log('Showing save manager modal');
+        
+        // Show the modal with proper styling
         saveManagerModal.style.display = 'flex';
-        saveManagerModal.style.opacity = '1';
+        saveManagerModal.style.opacity = '0';
         saveManagerModal.style.visibility = 'visible';
+        
+        // Force reflow to ensure the initial styles are applied
+        void saveManagerModal.offsetHeight;
+        
+        // Fade in the modal
+        saveManagerModal.classList.remove('hidden');
+        saveManagerModal.style.opacity = '1';
         
         // Prevent scrolling when modal is open
         document.body.style.overflow = 'hidden';
@@ -713,6 +769,11 @@ export class UIManager {
         
         // Load and display saved games
         this.refreshSaveList();
+        
+        // Focus the close button for better accessibility
+        setTimeout(() => {
+            closeBtn.focus();
+        }, 50);
     }
     
     hideSaveManager() {
@@ -891,60 +952,80 @@ export class UIManager {
     pauseSimulation(showMenu = false) {
         if (!this.app.isRunning) return;
         
+        // Store current temperature overlay state
+        const wasTemperatureVisible = this.app.temperatureManager && 
+                                    this.app.temperatureManager.isTemperatureOverlayEnabled();
+        
         // Pause the simulation
         if (window.Module) {
             if (typeof window.Module._emscripten_pause_main_loop === 'function') {
                 window.Module._emscripten_pause_main_loop();
-            } else if (window.Module.asm && window.Module.asm._emscripten_pause_main_loop) {
+            } else if (window.Module.asm && typeof window.Module.asm._emscripten_pause_main_loop === 'function') {
                 window.Module.asm._emscripten_pause_main_loop();
             }
         }
         
-        // Update app state
-        this.app.isPaused = true;
-        
-        // Hide any visible tooltips
-        if (this.app.selectionManager) {
-            this.app.selectionManager.hideTooltip();
+        try {
+            // Update app state
+            this.app.isPaused = true;
+            
+            // Pause the engine if available
+            if (this.app.engine && typeof this.app.engine.pause === 'function') {
+                this.app.engine.pause();
+            }
+            
+            // Show pause banner
+            this.showPauseBanner();
+            
+            // Show pause menu if requested
+            if (showMenu) {
+                this.showPauseMenu();
+            }
+            
+            // Restore temperature overlay visibility if it was enabled
+            if (wasTemperatureVisible && this.app.temperatureManager) {
+                this.app.temperatureManager.showTemperature = true;
+            }
+            
+            logger.log('Simulation paused' + (showMenu ? ' (with menu)' : ''));
+        } catch (error) {
+            logger.error('Error pausing simulation:', error);
         }
-        
-        // Show UI elements
-        this.showPauseBanner();
-        if (showMenu) {
-            this.showPauseMenu();
-        }
-        
-        logger.log('Simulation paused' + (showMenu ? ' (with menu)' : ''));
     }
     
     /**
      * Resumes the simulation
      */
     resumeSimulation() {
-        if (!this.app.isPaused) return;
+        logger.log('UIManager resumeSimulation called');
         
-        // Resume the simulation
-        if (window.Module) {
-            if (typeof window.Module._emscripten_resume_main_loop === 'function') {
-                window.Module._emscripten_resume_main_loop();
-            } else if (window.Module.asm && window.Module.asm._emscripten_resume_main_loop) {
-                window.Module.asm._emscripten_resume_main_loop();
+        if (!this.app) {
+            logger.error('Cannot resume: app not initialized');
+            return;
+        }
+        
+        try {
+            // Update app state
+            this.app.isPaused = false;
+            
+            // Resume the engine if available
+            if (this.app.engine && typeof this.app.engine.resume === 'function') {
+                this.app.engine.resume();
             }
+            
+            // Update UI
+            this.hidePauseBanner();
+            this.hidePauseMenu();
+            
+            // Force update the hovered cell and tooltip
+            if (this.app.selectionManager) {
+                this.app.selectionManager.forceUpdateHoveredCell();
+            }
+            
+            logger.log('Simulation resumed');
+        } catch (error) {
+            logger.error('Error resuming simulation:', error);
         }
-        
-        // Update app state
-        this.app.isPaused = false;
-        
-        // Hide UI elements
-        this.hidePauseMenu();
-        this.hidePauseBanner();
-        
-        // Force update the hovered cell and tooltip
-        if (this.app.selectionManager) {
-            this.app.selectionManager.forceUpdateHoveredCell();
-        }
-        
-        logger.log('Simulation resumed');
     }
     
     /**

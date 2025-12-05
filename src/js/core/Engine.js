@@ -141,11 +141,13 @@ class Engine {
      * Resume the simulation
      */
     resume() {
-        if (!this.isPaused || !this.isRunning) return this;
-        
+        if (!this.isPaused || !this.isRunning) {
+            logger.log('Engine not paused or not running');
+            return this;
+        }
         this.isPaused = false;
-        this.lastRenderTime = performance.now(); // Reset timing to avoid large delta after pause
-        logger.log('Engine resumed');
+        this.lastRenderTime = performance.now();
+        logger.log('Engine resumed - isPaused:', this.isPaused, 'isRunning:', this.isRunning);
         return this;
     }
     
@@ -176,22 +178,24 @@ class Engine {
      * @param {number} timestamp - Current timestamp from requestAnimationFrame
      */
     gameLoop(timestamp) {
-        if (!this.isRunning) return;
-        
-        // Calculate delta time in seconds
-        this.deltaTime = (timestamp - this.lastRenderTime) / 1000;
-        this.lastRenderTime = timestamp;
-        
-        // Update game state if not paused
-        if (!this.isPaused) {
-            this._update(this.deltaTime);
+        if (!this.isRunning) {
+            return;
         }
-        
-        // Always render, even when paused
-        this._render(this.deltaTime);
-        
+
+        // Calculate delta time in seconds
+        const deltaTime = (timestamp - this.lastRenderTime) / 1000;
+        this.lastRenderTime = timestamp;
+
+        // Only update if not paused
+        if (!this.isPaused) {
+            this._update(deltaTime);
+        }
+
+        // Always render
+        this._render(deltaTime, this.isPaused);
+
         // Continue the loop
-        this.animationFrameId = requestAnimationFrame(this.gameLoop);
+        this.animationFrameId = requestAnimationFrame(this.gameLoop.bind(this));
     }
     
     /**
@@ -200,6 +204,11 @@ class Engine {
      * @param {number} deltaTime - Time since last frame in seconds
      */
     _update(deltaTime) {
+        // Don't update if paused
+        if (this.isPaused) {
+            return;
+        }
+        
         // Apply simulation speed to delta time
         const scaledDelta = deltaTime * this.simulationSpeed;
         
@@ -218,7 +227,7 @@ class Engine {
      * @private
      * @param {number} deltaTime - Time since last frame in milliseconds
      */
-    async _render(deltaTime) {
+    async _render(deltaTime, isPaused = false) {
         try {
             // Get canvas context
             const canvas = document.querySelector('canvas');
@@ -230,9 +239,9 @@ class Engine {
             // Clear the canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Call the render callback if provided
+            // Call the render callback if provided, passing the paused state
             if (this.renderCallback) {
-                await this.renderCallback(deltaTime, this.accumulator / this.timestep, ctx);
+                await this.renderCallback(deltaTime, this.accumulator / this.timestep, ctx, isPaused);
             }
         } catch (error) {
             logger.error('Error in render loop:', error);

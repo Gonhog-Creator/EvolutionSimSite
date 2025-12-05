@@ -203,13 +203,19 @@ class App {
      * @param {number} frameRatio - Interpolation factor for smooth rendering
      * @param {CanvasRenderingContext2D} ctx - Canvas rendering context
      */
-    async renderCallback(deltaTime, frameRatio, ctx) {
+    async renderCallback(deltaTime, frameRatio, ctx, isPaused = false) {
         const timestamp = performance.now();
         
-        // Always update temperature system, but only render if enabled
-        if (this.temperatureManager) {
+        // Update our internal state to match the engine's state
+        if (this.isPaused !== isPaused) {
+            this.isPaused = isPaused;
+            logger.log(`App renderCallback: isPaused=${isPaused}`);
+        }
+        
+        // Update temperature system if not paused
+        if (!isPaused && this.temperatureManager) {
             try {
-                // Safely update temperature system
+                // Only update the temperature system when not paused
                 if (typeof this.temperatureManager.update === 'function') {
                     this.temperatureManager.update();
                 }
@@ -225,18 +231,22 @@ class App {
                         }
                     }
                 }
-                
-                // Draw temperature overlay if enabled and render method exists
-                if (this.temperatureManager?.isTemperatureOverlayEnabled() && 
-                    typeof this.temperatureManager.render === 'function') {
-                    this.temperatureManager.render(ctx, this.grid?.cellSize || 20, true);
-                }
             } catch (error) {
-                console.error('Error in temperature system:', error);
+                console.error('Error updating temperature system:', error);
             }
         }
         
-        // Draw the grid
+        // Always render the temperature overlay if enabled, even when paused
+        if (this.temperatureManager?.isTemperatureOverlayEnabled() && 
+            typeof this.temperatureManager.render === 'function') {
+            try {
+                this.temperatureManager.render(ctx, this.grid?.cellSize || 20, true);
+            } catch (error) {
+                console.error('Error rendering temperature overlay:', error);
+            }
+        }
+        
+        // Always draw the grid and UI elements
         await this.drawGrid(ctx, ctx.canvas.width, ctx.canvas.height);
         
         // Draw selection and hover effects
@@ -251,8 +261,11 @@ class App {
                 cellInfo = { 
                     temp,
                     x: selectedCell.x,
-                    y: selectedCell.y
+                    y: selectedCell.y,
+                    isPaused // Include paused state in debug info
                 };
+            } else {
+                cellInfo = { isPaused }; // Still include paused state even if no cell is selected
             }
             
             if (this.uiManager && this.uiManager.updateDebugOverlay) {
@@ -559,14 +572,15 @@ class App {
                 if (startBtn) startBtn.disabled = true;
                 if (pauseBtn) pauseBtn.disabled = false;
                 
-                logger.log('Simulation started successfully', 'success');
+                logger.log('Engine started successfully');
             } else {
-                // If no initialization function was found, use our engine
-                logger.log('No initialization function found, using Engine...');
+                // If no initialization function was found, set up our own render loop
+                logger.log('No initialization function found, setting up render loop...');
                 
                 // Set simulation state
                 this.isRunning = true;
                 this.isPaused = false;
+                this.lastRenderTime = null;
                 
                 // Show debug overlay when game starts
                 if (this.uiManager) {
@@ -574,36 +588,35 @@ class App {
                 }
                 
                 // Start the engine
-                this.engine.start();
-                
-                // Update UI if elements exist
-                const { startBtn, pauseBtn } = this.uiManager.elements || {};
-                if (startBtn) startBtn.disabled = true;
-                if (pauseBtn) pauseBtn.disabled = false;
-                
-                logger.log('Engine started successfully');
+                if (this.engine && typeof this.engine.start === 'function') {
+                    this.engine.start();
+                    logger.log('Engine render loop started');
+                } else {
+                    logger.error('Engine not available or missing start method');
+                }
             }
             
-            return this;
+            return true;
         } catch (error) {
             logger.error('Error starting simulation:', error);
             throw error;
         }
     }
-/**
- * Initializes the simulation grid based on the canvas size
- */
-async initializeSimulationGrid() {
-    try {
-        const canvas = document.querySelector('canvas');
-        if (!canvas) {
-            throw new Error('Canvas element not found');
-        }
-        
-        // Set canvas to full window size
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+
+    /**
+     * Initializes the simulation grid based on the canvas size
+     */
+    async initializeSimulationGrid() {
+        try {
+            const canvas = document.querySelector('canvas');
+            if (!canvas) {
+                throw new Error('Canvas element not found');
+            }
             
+            // Set canvas to full window size
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+                
             // Define grid properties
             const cellSize = 20; // Size of each grid cell in pixels
             const width = Math.ceil(canvas.width / cellSize);
