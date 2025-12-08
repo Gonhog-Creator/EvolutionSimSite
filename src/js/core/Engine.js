@@ -23,6 +23,33 @@ class Engine {
         this.minSpeed = 0.1;
         this.maxSpeed = 10.0;
         
+        // Camera/Viewport settings
+        this.camera = {
+            x: 0,
+            y: 0,
+            targetX: 0,
+            targetY: 0,
+            moveSpeed: 10, // pixels per second
+            smoothness: 0.1, // lower is smoother, higher is snappier
+            get position() {
+                return { x: this.x, y: this.y };
+            },
+            move(dx, dy) {
+                this.targetX += dx;
+                this.targetY += dy;
+            },
+            update(deltaTime) {
+                // Smooth camera movement using linear interpolation
+                const moveSpeed = this.moveSpeed * (deltaTime / 1000);
+                this.x += (this.targetX - this.x) * this.smoothness * moveSpeed * 10;
+                this.y += (this.targetY - this.y) * this.smoothness * moveSpeed * 10;
+            },
+            setPosition(x, y) {
+                this.x = this.targetX = x;
+                this.y = this.targetY = y;
+            }
+        };
+        
         // Callbacks - implement these in your game
         this.updateCallback = null;
         this.renderCallback = null;
@@ -183,42 +210,33 @@ class Engine {
         }
 
         // Calculate delta time in seconds
-        const deltaTime = (timestamp - this.lastRenderTime) / 1000;
+        const deltaTimeMs = timestamp - this.lastRenderTime;
         this.lastRenderTime = timestamp;
+
+        // Update camera position
+        this.camera.update(deltaTimeMs);
 
         // Only update if not paused
         if (!this.isPaused) {
-            this._update(deltaTime);
+            this._update(deltaTimeMs / 1000); // Convert to seconds for update
         }
 
         // Always render
-        this._render(deltaTime, this.isPaused);
+        this._render(deltaTimeMs / 1000, this.isPaused);
 
         // Continue the loop
         this.animationFrameId = requestAnimationFrame(this.gameLoop.bind(this));
     }
     
     /**
-     * Internal update handler with fixed timestep
+     * Internal update handler
      * @private
-     * @param {number} deltaTime - Time since last frame in seconds
+     * @param {number} deltaTime - Time since last update in seconds
      */
     _update(deltaTime) {
-        // Don't update if paused
-        if (this.isPaused) {
-            return;
-        }
-        
-        // Apply simulation speed to delta time
-        const scaledDelta = deltaTime * this.simulationSpeed;
-        
-        // Fixed timestep update
-        this.accumulator += scaledDelta;
-        while (this.accumulator >= this.timestep) {
-            if (this.updateCallback) {
-                this.updateCallback(this.timestep);
-            }
-            this.accumulator -= this.timestep;
+        // Call the update callback if provided
+        if (this.updateCallback && typeof this.updateCallback === 'function') {
+            this.updateCallback(deltaTime);
         }
     }
     

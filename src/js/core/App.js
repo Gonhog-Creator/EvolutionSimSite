@@ -5,6 +5,7 @@ import { selectionManager } from '../managers/SelectionManager.js';
 import { temperatureManager } from '../managers/TemperatureManager.js';
 import { AdminManager } from '../managers/AdminManager.js';
 import { WasmManager } from '../utils/WasmManager.js';
+import { mapManager } from '../managers/MapManager.js';
 import { Engine } from './Engine.js';
 
 class App {
@@ -22,22 +23,37 @@ class App {
         // Initialize managers
         this.selectionManager = selectionManager;
         this.temperatureManager = temperatureManager;
+        this.mapManager = mapManager;
         
         // Set app reference in selection manager
         if (this.selectionManager) {
             this.selectionManager.app = this;
+            this.selectionManager.engine = this.engine; // Make sure engine is set
+            
+            // Setup temperature adjustment handler
+            this.selectionManager.onTemperatureAdjust = (x, y, isDecrease = false) => {
+                if (this.adminManager?.isAdmin) {
+                    const currentTemp = this.temperatureManager.getTemperature(x, y);
+                    const change = isDecrease ? -10 : 10;
+                    const newTemp = currentTemp + change;
+                    this.temperatureManager.setTemperature(x, y, newTemp);
+                }
+                // No logging of temperature changes
+            };
+            
+            // Setup cell selection handler
+            this.selectionManager.onCellSelected = (x, y) => {
+                logger.log(`Cell selected at: (${x}, ${y})`);
+                // Handle cell selection logic here
+                this.selectedCell = { x, y };
+                
+                // If you have any UI that needs to update when a cell is selected,
+                // you can trigger that update here
+                if (this.uiManager) {
+                    this.uiManager.updateSelectedCell(x, y);
+                }
+            };
         }
-        
-        // Setup temperature adjustment handler
-        this.selectionManager.onTemperatureAdjust = (x, y, isDecrease = false) => {
-            if (this.adminManager?.isAdmin) {
-                const currentTemp = this.temperatureManager.getTemperature(x, y);
-                const change = isDecrease ? -10 : 10;
-                const newTemp = currentTemp + change;
-                this.temperatureManager.setTemperature(x, y, newTemp);
-            }
-            // No logging of temperature changes
-        };
         
         this.saveManager = saveManager;
         this.saveManager._useFallback = true;
@@ -89,20 +105,10 @@ class App {
         
         try {
             logger.log('Initializing application...');
-            
-            // Initialize UI
             this.uiManager.initialize();
-            
-            // Admin and diagnostics are now handled by AdminManager
             this.adminManager.initialize();
-            
-            // Wait for WebAssembly to be ready and get the module
             const wasmModule = await this.waitForWasmReady();
-            
-            // Initialize components that depend on WebAssembly
             this.onWasmReady(wasmModule);
-            
-            // Initialize WebAssembly module if needed
             if (wasmModule && typeof wasmModule._initialize === 'function') {
                 logger.log('Initializing WebAssembly module...');
                 this.wasmInitializationPromise = this.initializeWasm();
@@ -124,7 +130,10 @@ class App {
     onWasmReady(wasmModule) {
         // Initialize Save Manager with WebAssembly module
         if (wasmModule) {
-            this.saveManager = saveManager.getInstance(wasmModule);
+            this.saveManager._wasmModule = wasmModule;
+            logger.log('WebAssembly module set on SaveManager');
+        } else {
+            logger.warn('No WebAssembly module provided to onWasmReady');
         }
         
         // Initialize any WebAssembly-dependent components
@@ -137,23 +146,28 @@ class App {
         logger.log('Initializing application...');
         
         try {
-            // Initialize admin manager
-            this.adminManager = new AdminManager(this);
-            this.adminManager.initialize();
-            
+            // Initialize the engine
+            this.engine = new Engine({
+                targetFPS: 60,
+                showFPS: true,
+                pauseOnBlur: true
+            });
+
             // Initialize UI Manager
             this.uiManager = new UIManager(this);
             
-            // Initialize diagnostics
-            this.diagChannel = new DiagnosticsChannel();
+            // Initialize selection manager with canvas and cell size
+            const canvas = document.querySelector('canvas');
+            if (canvas) {
+                this.selectionManager.engine = this.engine; // Pass engine reference
+                this.selectionManager.init(canvas, 20); // 20 is the cell size
+            }
             
-            // Initialize save manager with fallback
-            this.saveManager = saveManager.getInstance({ useFallback: true });
+            // Initialize WebAssembly
+            this.initializeWasm();
             
-            // Try to initialize WebAssembly
-            await this.initializeWasm();
-            
-            // Other initializations...
+            // Start the game loop
+            this.startGameLoop();
             
             logger.log('Application initialized successfully');
         } catch (error) {
@@ -204,6 +218,16 @@ class App {
      * @param {CanvasRenderingContext2D} ctx - Canvas rendering context
      */
     async renderCallback(deltaTime, frameRatio, ctx, isPaused = false) {
+        // Clear the canvas
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        
+        // Get camera position
+        const camera = this.engine.camera;
+        const cameraX = Math.round(camera.x);
+        const cameraY = Math.round(camera.y);
+        
+        // Draw the grid using MapManager
+        this.mapManager.render(ctx, cameraX, cameraY);
         const timestamp = performance.now();
         
         // Update our internal state to match the engine's state
@@ -231,23 +255,20 @@ class App {
                         }
                     }
                 }
+                
+                // Render temperature overlay if enabled
+                if (this.temperatureManager && typeof this.temperatureManager.render === 'function') {
+                    try {
+                        const cellSize = this.mapManager?.cellSize || 20;
+                        this.temperatureManager.render(ctx, cellSize, this.temperatureManager.showTemperature, cameraX, cameraY);
+                    } catch (error) {
+                        console.error('Error in temperature overlay render:', error);
+                    }
+                }
             } catch (error) {
                 console.error('Error updating temperature system:', error);
             }
         }
-        
-        // Always render the temperature overlay if enabled, even when paused
-        if (this.temperatureManager?.isTemperatureOverlayEnabled() && 
-            typeof this.temperatureManager.render === 'function') {
-            try {
-                this.temperatureManager.render(ctx, this.grid?.cellSize || 20, true);
-            } catch (error) {
-                console.error('Error rendering temperature overlay:', error);
-            }
-        }
-        
-        // Always draw the grid and UI elements
-        await this.drawGrid(ctx, ctx.canvas.width, ctx.canvas.height);
         
         // Draw selection and hover effects
         if (this.selectionManager) {
@@ -258,10 +279,14 @@ class App {
             const selectedCell = this.selectionManager.getSelectedCell();
             if (selectedCell && this.temperatureManager) {
                 const temp = this.temperatureManager.getTemperature(selectedCell.x, selectedCell.y);
+                const cell = this.mapManager.grid[selectedCell.y]?.[selectedCell.x];
+                const cellType = cell?.type || 'unknown';
+                
                 cellInfo = { 
                     temp,
                     x: selectedCell.x,
                     y: selectedCell.y,
+                    type: cellType,
                     isPaused // Include paused state in debug info
                 };
             } else {
@@ -508,7 +533,12 @@ class App {
      * @param {number} deltaTime - Time since last update in seconds
      */
     update(deltaTime) {
-        // Add any game state updates here
+        // Update UI components including camera movement
+        if (this.uiManager && typeof this.uiManager.update === 'function') {
+            this.uiManager.update(deltaTime);
+        }
+        
+        // Add any other game state updates here
         // This method is called at a fixed timestep by the engine
     }
 
@@ -629,39 +659,27 @@ class App {
                 cells: []
             };
             
-            // Check if we have saved temperature data in the game state
-            const savedTemperatureData = this.gameState?.temperatureData;
-            
-            // Log the saved temperature data for debugging
-            logger.log('Initializing temperature system with data:', {
-                hasSavedData: !!savedTemperatureData,
-                savedWidth: savedTemperatureData?.width,
-                savedHeight: savedTemperatureData?.height,
-                currentWidth: width,
-                currentHeight: height
-            });
-            
             try {
-                // Initialize the temperature system with the current dimensions
-                await this.temperatureManager.initialize(width, height);
+                // Initialize the temperature manager with the app instance
+                this.temperatureManager.app = this;
                 
-                // If we have saved temperature data and the dimensions match, apply it
-                if (savedTemperatureData && 
-                    savedTemperatureData.width === width && 
-                    savedTemperatureData.height === height) {
-                    
-                    logger.log('Applying saved temperature data');
-                    this.temperatureManager.setTemperatureData(savedTemperatureData);
-                } else if (savedTemperatureData) {
-                    logger.warn('Saved temperature data dimensions do not match current grid', {
-                        savedWidth: savedTemperatureData.width,
-                        savedHeight: savedTemperatureData.height,
-                        currentWidth: width,
-                        currentHeight: height
-                    });
-                } else {
-                    logger.log('No saved temperature data found, using default temperature');
+                // Get the map dimensions from MapManager
+                const mapWidth = this.mapManager.gridWidth;
+                const mapHeight = this.mapManager.gridHeight;
+                
+                // Initialize the temperature system with the full map dimensions
+                await this.temperatureManager.initialize(mapWidth, mapHeight);
+                
+                // Set some initial temperature values for testing
+                for (let x = 0; x < mapWidth; x++) {
+                    for (let y = 0; y < mapHeight; y++) {
+                        // Create a temperature gradient for testing
+                        const temp = 10 + (x / mapWidth) * 30; // 10°C to 40°C gradient
+                        this.temperatureManager.setTemperature(x, y, temp);
+                    }
                 }
+                
+                logger.log(`Initialized temperature system with ${width}x${height} grid`);
             } catch (error) {
                 logger.error('Error initializing temperature system:', error);
                 // Fall back to default temperature
@@ -699,10 +717,11 @@ class App {
     }
 
     /**
-     * Draws the simulation grid
+     * Draws the simulation grid using MapManager
      * @param {CanvasRenderingContext2D} [ctx] - Optional canvas 2D context
      * @param {number} [width] - Optional canvas width
      * @param {number} [height] - Optional canvas height
+     * @returns {Promise<boolean>} True if successful, false otherwise
      */
     async drawGrid(ctx, width, height) {
         try {
@@ -716,37 +735,25 @@ class App {
 
                 width = width || canvas.width;
                 height = height || canvas.height;
-
-                // Clear the canvas
-                ctx.clearRect(0, 0, width, height);
             }
 
-            // Set grid style
-            const cellSize = this.grid?.cellSize || 20;
-            ctx.strokeStyle = this.grid ? '#1a1a1a' : '#333333';
-            ctx.lineWidth = this.grid ? 1 : 0.5;
+            // Clear the canvas
+            ctx.clearRect(0, 0, width, height);
 
-            // Draw vertical grid lines
-            for (let x = 0; x <= width; x += cellSize) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, height);
-                ctx.stroke();
+            // Get camera position from engine
+            const cameraX = this.engine?.camera?.x || 0;
+            const cameraY = this.engine?.camera?.y || 0;
+            
+            // Delegate grid rendering to MapManager
+            if (this.mapManager) {
+                this.mapManager.render(ctx, cameraX, cameraY);
+                return true;
             }
-
-            // Draw horizontal grid lines
-            for (let y = 0; y <= height; y += cellSize) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(width, y);
-                ctx.stroke();
-            }
-
-            return true;
-
+            
+            return false;
         } catch (error) {
             logger.error('Error drawing grid:', error);
-            throw error;
+            return false;
         }
     }
     

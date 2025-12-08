@@ -9,7 +9,13 @@ class Config {
       maxFPS: 60,
       renderScale: window.devicePixelRatio || 1,
       showFPS: false,
-      // Add other default config values here
+      
+      // Map configuration
+      map: {
+        width: 80,   // Map width in cells
+        height: 100, // Map height in cells
+        cellSize: 20 // Size of each cell in pixels
+      }
     };
     
     // Load saved config from localStorage if available

@@ -97,7 +97,11 @@ class JsTemperatureSystem {
         }
     }
     
-    getTemperatureData() {
+    /**
+     * Gets the current temperature data with width and height as first two elements
+     * @returns {Array} Array with [width, height, ...temperatureData]
+     */
+    getCurrentTemperatureData() {
         const result = [this.width, this.height];
         for (let y = 0; y < this.height; y++) {
             for (let x = 0; x < this.width; x++) {
@@ -113,6 +117,7 @@ export class TemperatureManager {
         this.temperatureSystem = null;
         this.showTemperature = false;
         this.lastUpdate = 0;
+        this.lastRenderState = null; // Track the last render state for debugging
         this.updateInterval = 100; // ms between updates
         
         // Temperature ranges and colors similar to Oxygen Not Included
@@ -132,6 +137,11 @@ export class TemperatureManager {
         
         this.minTemp = this.temperatureRanges[0].min;
         this.maxTemp = this.temperatureRanges[this.temperatureRanges.length - 1].max;
+        
+        // Bind methods
+        this.getTemperatureColor = this.getTemperatureColor.bind(this);
+        this.render = this.render.bind(this);
+        this.toggleTemperatureOverlay = this.toggleTemperatureOverlay.bind(this);
     }
 
     /**
@@ -185,18 +195,12 @@ export class TemperatureManager {
     }
 
     /**
-     * Toggles the temperature overlay on/off
+     * Toggles temperature overlay on/off
+     * @returns {boolean} The new state of the temperature overlay
      */
     toggleTemperatureOverlay() {
         this.showTemperature = !this.showTemperature;
         logger.log(`Temperature overlay ${this.showTemperature ? 'enabled' : 'disabled'}`);
-        
-        // If enabling, make sure temperature system is initialized
-        if (this.showTemperature && !this.temperatureSystem) {
-            logger.warn('Temperature system not initialized. Call initialize() first.');
-            return false;
-        }
-        
         return this.showTemperature;
     }
     
@@ -209,83 +213,184 @@ export class TemperatureManager {
     }
 
     /**
-     * Toggle temperature visualization
-     */
-    toggleTemperatureView() {
-        this.showTemperature = !this.showTemperature;
-        logger.log(`Temperature view: ${this.showTemperature ? 'ON' : 'OFF'}`);
-        return this.showTemperature;
-    }
-
-    /**
-     * Get the color for a temperature value
-     * @param {number} temp - Temperature in Celsius
-     * @returns {string} CSS color string
-     */
-    getTemperatureColor(temp) {
-        // Find the appropriate temperature range
-        const range = this.temperatureRanges.find(range => temp >= range.min && temp < range.max) || 
-                     this.temperatureRanges[this.temperatureRanges.length - 1];
-        
-        // If we're at the end of the range, just return the color directly
-        if (temp >= this.temperatureRanges[this.temperatureRanges.length - 1].max) {
-            const c = this.temperatureRanges[this.temperatureRanges.length - 1].color;
-            return `rgb(${c.r}, ${c.g}, ${c.b})`;
-        }
-        
-        // Find the next range for interpolation
-        const nextRange = this.temperatureRanges[this.temperatureRanges.indexOf(range) + 1];
-        
-        if (!nextRange) {
-            const c = range.color;
-            return `rgb(${c.r}, ${c.g}, ${c.b})`;
-        }
-        
-        // Calculate interpolation factor (0-1) between the two ranges
-        const rangeMin = range.min;
-        const rangeMax = nextRange.max;
-        const factor = (temp - rangeMin) / (rangeMax - rangeMin);
-        
-        // Interpolate between the two colors
-        const r = Math.round(range.color.r + (nextRange.color.r - range.color.r) * factor);
-        const g = Math.round(range.color.g + (nextRange.color.g - range.color.g) * factor);
-        const b = Math.round(range.color.b + (nextRange.color.b - range.color.b) * factor);
-        
-        return `rgb(${r}, ${g}, ${b})`;
-    }
-
-    /**
      * Render the temperature overlay
      * @param {CanvasRenderingContext2D} ctx - Canvas 2D context
      * @param {number} cellSize - Size of each cell in pixels
+     * @param {boolean} [showTemperature=this.showTemperature] - Whether to show the temperature overlay
+     * @param {number} [cameraX=0] - Camera X position
+     * @param {number} [cameraY=0] - Camera Y position
      */
-    render(ctx, cellSize, showTemperature = false) {
-        if (!showTemperature || !this.temperatureSystem) return;
+    render(ctx, cellSize, showTemperature = this.showTemperature, cameraX = 0, cameraY = 0) {
+        // Update the internal state to match the parameter
+        if (this.showTemperature !== showTemperature) {
+            this.showTemperature = showTemperature;
+            logger.log(`Temperature overlay render: ${this.showTemperature ? 'showing' : 'hiding'}`);
+        }
+        
+        // Early return if we shouldn't render
+        if (!this.showTemperature) {
+            return;
+        }
+        
+        // Debug: Check if context is valid
+        if (!ctx) {
+            logger.error('Invalid canvas context in TemperatureManager.render');
+            return;
+        }
+        
+        // Save the current context state
+        ctx.save();
         
         try {
-            // Get temperature data as a flat array [width, height, t0, t1, t2, ...]
-            const tempData = this.temperatureSystem.getTemperatureData();
+            // If no temperature system, draw a test pattern
+            if (!this.temperatureSystem) {
+                logger.warn('No temperature system available, drawing test pattern');
+                this.drawTestPattern(50, 50, cellSize, cameraX, cameraY);
+                return;
+            }
+
+            // Get temperature data using the correct method
+            const tempData = this.temperatureSystem.getCurrentTemperatureData();
+            if (!tempData || tempData.length < 3) {
+                logger.warn('Temperature data not available or invalid');
+                return;
+            }
+
             const width = tempData[0];
             const height = tempData[1];
+            let validTemps = 0; // Initialize validTemps counter
             
-            // Draw temperature overlay
-            ctx.save();
+            // Debug log only on first render or when toggled
+            if (this.lastRenderState !== showTemperature) {
+                logger.log(`Rendering temperature overlay: ${width}x${height} grid, ${cellSize}px cells`);
+                logger.log('Temperature data sample (first 5 values):', tempData.slice(2, 7));
+                this.lastRenderState = showTemperature;
+            }
+            
+            // Debug: Check if we have valid dimensions
+            if (width <= 0 || height <= 0) {
+                logger.warn(`Invalid grid dimensions: ${width}x${height}`);
+                return;
+            }
+            
+            // Set a higher alpha for better visibility
             ctx.globalAlpha = 0.7;
             
+            // Use the full grid dimensions instead of visible area
+            const startX = 0;
+            const startY = 0;
+            const endX = width;
+            const endY = height;
+            
+            // Draw a semi-transparent background for the entire grid
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(
+                -cameraX,
+                -cameraY,
+                width * cellSize,
+                height * cellSize
+            );
+            
+            // Draw temperature cells for the entire grid
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
-                    const temp = tempData[2 + y * width + x];
-                    ctx.fillStyle = this.getTemperatureColor(temp);
-                    ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+                    // Get temperature directly from the temperature system
+                    const temp = this.temperatureSystem.getTemperature(x, y);
+                    if (temp === undefined || temp === null) continue;
+                    
+                    validTemps++;
+                    const color = this.getTemperatureColor(temp);
+                    if (!color) continue;
+                    
+                    // Calculate screen position with camera offset
+                    const screenX = x * cellSize - cameraX;
+                    const screenY = y * cellSize - cameraY;
+                    
+                    // Skip if cell is outside the visible area
+                    if (screenX + cellSize < 0 || screenX > ctx.canvas.width || 
+                        screenY + cellSize < 0 || screenY > ctx.canvas.height) {
+                        continue;
+                    }
+                    
+                    // Fill the cell with the temperature color
+                    ctx.fillStyle = color;
+                    // Make cells slightly smaller to show grid lines
+                    const padding = 0.5;
+                    ctx.fillRect(
+                        screenX + padding, 
+                        screenY + padding, 
+                        cellSize - padding * 2, 
+                        cellSize - padding * 2
+                    );
+                    
+                    // Add a subtle border to make cells more distinct
+                    ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+                    ctx.lineWidth = 0.5;
+                    ctx.strokeRect(
+                        screenX + padding, 
+                        screenY + padding, 
+                        cellSize - padding * 2, 
+                        cellSize - padding * 2
+                    );
                 }
             }
             
-            ctx.restore();
+            // Debug: Log if we didn't find any valid temperatures
+            if (validTemps === 0) {
+                logger.warn('No valid temperature values found in temperature data');
+            } else if (this.lastRenderState !== showTemperature) {
+                logger.log(`Rendering ${validTemps} temperature cells`);
+            }
+            
         } catch (error) {
-            logger.error('Error rendering temperature overlay:', error);
+            console.error('Error in temperature render:', error);
+        } finally {
+            // Always restore the context state
+            ctx.restore();
         }
     }
 
+    /**
+     * Draw a test pattern to verify rendering is working
+     * @param {CanvasRenderingContext2D} ctx - The canvas context
+     * @param {number} width - Grid width in cells
+     * @param {number} height - Grid height in cells
+     * @param {number} cellSize - Size of each cell in pixels
+     */
+    drawTestPattern(ctx, width, height, cellSize) {
+        logger.log(`Drawing test pattern: ${width}x${height} grid, ${cellSize}px cells`);
+        
+        // Clear the entire canvas
+        const canvas = ctx.canvas;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw a gradient from cold to hot
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                // Create a gradient from cold to hot (left to right)
+                // and from hot to cold (top to bottom)
+                const tempX = (x / width) * 100; // 0 to 100 from left to right
+                const tempY = (1 - y / height) * 100; // 100 to 0 from top to bottom
+                const temp = (tempX + tempY) / 2; // Average of both gradients
+                
+                const color = this.getTemperatureColor(temp);
+                ctx.fillStyle = color;
+                ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+                
+                // Add a subtle border
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+                ctx.lineWidth = 0.5;
+                ctx.strokeRect(x * cellSize, y * cellSize, cellSize, cellSize);
+            }
+        }
+        
+        // Add a label
+        ctx.fillStyle = 'white';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Temperature Overlay', (width * cellSize) / 2, 20);
+    }
+    
     /**
      * Get the temperature at a specific grid position
      * @param {number} x - X coordinate
@@ -384,14 +489,185 @@ export class TemperatureManager {
                     }
                 }
             }
-
-            logger.log('Successfully loaded temperature data');
+            
             return true;
         } catch (error) {
             logger.error('Error setting temperature data:', error);
             return false;
         }
     }
+    
+    /**
+     * Get the color for a specific temperature
+     * @param {number} temp - Temperature value
+     * @returns {string} RGBA color string
+     */
+    getTemperatureColor(temp) {
+        // Find the appropriate color range for the temperature
+        const range = this.temperatureRanges.find(r => temp >= r.min && temp <= r.max);
+        if (range) {
+            const c = range.color;
+            // Add some alpha to make it semi-transparent
+            return `rgba(${c.r}, ${c.g}, ${c.b}, 0.9)`;
+        }
+        // Default to semi-transparent black if temperature is out of range
+        return 'rgba(0, 0, 0, 0.5)';
+    }
+
+    /**
+     * Draw a test pattern to verify rendering is working
+     * @param {CanvasRenderingContext2D} ctx - The canvas context
+     * @param {number} width - Grid width in cells
+     * @param {number} height - Grid height in cells
+     * @param {number} cellSize - Size of each cell in pixels
+     */
+    drawTestPattern(ctx, width, height, cellSize) {
+        logger.log(`Drawing test pattern: ${width}x${height} grid, ${cellSize}px cells`);
+        
+        // Clear the entire canvas
+        const canvas = ctx.canvas;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw a gradient from cold to hot
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                // Create a gradient from cold to hot (left to right)
+                // and from hot to cold (top to bottom)
+                const tempX = (x / width) * 100; // 0 to 100 from left to right
+                const tempY = (1 - y / height) * 100; // 100 to 0 from top to bottom
+                const temp = (tempX + tempY) / 2; // Average of both gradients
+                
+                const color = this.getTemperatureColor(temp);
+                ctx.fillStyle = color;
+                ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+                
+                // Add a subtle border
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+                ctx.lineWidth = 0.5;
+                ctx.strokeRect(x * cellSize, y * cellSize, cellSize, cellSize);
+            }
+        }
+        
+        // Add a label
+        ctx.fillStyle = 'white';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Temperature Overlay', (width * cellSize) / 2, 20);
+    }
+
+    /**
+     * Get the temperature at a specific grid position
+     * @param {number} x - X coordinate
+     * @param {number} y - Y coordinate
+     * @returns {number} Temperature in Celsius
+     */
+    getTemperature(x, y) {
+        if (!this.temperatureSystem) return this.minTemp;
+        return this.temperatureSystem.getTemperature(x, y);
+    }
+
+    /**
+     * Set the temperature at a specific grid position
+     * @param {number} x - X coordinate
+     * @param {number} y - Y coordinate
+     * @param {number} temp - Temperature in Celsius
+     */
+    setTemperature(x, y, temp) {
+        if (this.temperatureSystem) {
+            // Clamp temperature to reasonable range
+            const clampedTemp = Math.max(-273.15, Math.min(1000, temp));
+            this.temperatureSystem.setTemperature(x, y, clampedTemp);
+        }
+    }
+
+    /**
+     * Gets the current temperature data for saving
+     * @returns {Object} Temperature data object
+     */
+    getTemperatureData() {
+        if (!this.temperatureSystem) {
+            logger.warn('Temperature system not initialized when getting temperature data');
+            return null;
+        }
+
+        try {
+            const data = {
+                width: this.temperatureSystem.width,
+                height: this.temperatureSystem.height,
+                ambientTemp: this.temperatureSystem.ambientTemp,
+                cells: []
+            };
+
+            // Only save the temperature values, not the entire cell objects
+            for (let y = 0; y < this.temperatureSystem.height; y++) {
+                const row = [];
+                for (let x = 0; x < this.temperatureSystem.width; x++) {
+                    row.push(this.temperatureSystem.getTemperature(x, y));
+                }
+                data.cells.push(row);
+            }
+
+            logger.log('Saved temperature data:', {
+                width: data.width,
+                height: data.height,
+                cells: `${data.cells.length}x${data.cells[0]?.length || 0}`
+            });
+
+            return data;
+        } catch (error) {
+            logger.error('Error getting temperature data:', error);
+            return null;
+        }
+}
+
+    /**
+     * Sets the temperature data from a saved state
+     * @param {Object} data - Temperature data object from save
+     * @returns {boolean} True if successful, false otherwise
+     */
+    setTemperatureData(data) {
+        try {
+            if (!this.temperatureSystem || 
+                this.temperatureSystem.width !== data.width || 
+                this.temperatureSystem.height !== data.height) {
+                
+                this.initialize(data.width, data.height, data.ambientTemp || 20);
+            }
+
+            // Apply the saved temperatures
+            for (let y = 0; y < data.height; y++) {
+                for (let x = 0; x < data.width; x++) {
+                    if (y < data.cells.length && x < data.cells[y].length) {
+                        this.setTemperature(x, y, data.cells[y][x]);
+                    }
+                }
+            }
+            
+            return true;
+        } catch (error) {
+            logger.error('Error setting temperature data:', error);
+            return false;
+        }
+}
+
+    /**
+     * Get the color for a specific temperature
+     * @param {number} temp - Temperature value
+     * @returns {string} RGBA color string
+     */
+    getTemperatureColor(temp) {
+        // Find the appropriate color range for the temperature
+        const range = this.temperatureRanges.find(r => temp >= r.min && temp <= r.max);
+        if (range) {
+            const c = range.color;
+            // Add some alpha to make it semi-transparent
+            return `rgba(${c.r}, ${c.g}, ${c.b}, 0.9)`;
+        }
+        // Default to semi-transparent black if temperature is out of range
+        return 'rgba(0, 0, 0, 0.5)';
+    }
+
+    // ... other methods ...
 }
 
 // Export a singleton instance

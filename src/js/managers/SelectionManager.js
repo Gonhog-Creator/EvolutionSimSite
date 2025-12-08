@@ -14,6 +14,7 @@ export class SelectionManager {
         this.tempAdjustDirection = 1; // 1 for increase, -1 for decrease
         this.dragButton = null; // Track which button started the drag
         this.app = null; // Will be set by the App class
+        this.engine = null; // Will be set by the App class
     }
 
     /**
@@ -22,6 +23,13 @@ export class SelectionManager {
      * @param {number} cellSize - Size of each cell in pixels
      */
     init(canvas, cellSize) {
+        if (!canvas) {
+            logger.error('SelectionManager.init: No canvas element provided');
+            return;
+        }
+        
+        logger.log('Initializing SelectionManager with cellSize:', cellSize);
+        
         // Store the canvas and cell size
         this.canvas = canvas;
         this.cellSize = cellSize;
@@ -33,6 +41,7 @@ export class SelectionManager {
         
         // Remove any existing event listeners if reinitializing
         if (this._currentCanvas) {
+            logger.log('Cleaning up previous canvas event listeners');
             if (this._eventHandlers.mouseMove) {
                 this._currentCanvas.removeEventListener('mousemove', this._eventHandlers.mouseMove);
             }
@@ -49,7 +58,7 @@ export class SelectionManager {
                 this._currentCanvas.removeEventListener('mouseleave', this._eventHandlers.mouseLeave);
             }
             if (this._eventHandlers.documentMouseUp) {
-                document.removeEventListener('mouseup', this._eventHandlers.documentMouseUp, true); // Use capture phase
+                document.removeEventListener('mouseup', this._eventHandlers.documentMouseUp, true);
             }
         }
         
@@ -57,20 +66,43 @@ export class SelectionManager {
         this._currentCanvas = canvas;
         
         // Create bound event handlers
-        this._eventHandlers.mouseMove = this.handleMouseMove.bind(this);
-        this._eventHandlers.mouseDown = this.handleMouseDown.bind(this);
-        this._eventHandlers.mouseUp = this.handleMouseUp.bind(this);
-        this._eventHandlers.contextMenu = this.handleContextMenu.bind(this);
-        this._eventHandlers.mouseLeave = this.handleMouseLeave.bind(this);
-        this._eventHandlers.documentMouseUp = this.handleDocumentMouseUp.bind(this);
+        this._eventHandlers.mouseMove = (e) => {
+            logger.debug('Mouse move event:', { x: e.clientX, y: e.clientY });
+            this.handleMouseMove(e);
+        };
         
-        // Add event listeners
-        canvas.addEventListener('mousemove', this._eventHandlers.mouseMove);
-        canvas.addEventListener('mousedown', this._eventHandlers.mouseDown);
-        canvas.addEventListener('mouseup', this._eventHandlers.mouseUp);
-        canvas.addEventListener('contextmenu', this._eventHandlers.contextMenu);
-        canvas.addEventListener('mouseleave', this._eventHandlers.mouseLeave);
-        document.addEventListener('mouseup', this._eventHandlers.documentMouseUp);
+        this._eventHandlers.mouseDown = (e) => {
+            logger.debug('Mouse down event:', { button: e.button, x: e.clientX, y: e.clientY });
+            this.handleMouseDown(e);
+        };
+        
+        this._eventHandlers.mouseUp = (e) => {
+            logger.debug('Mouse up event:', { button: e.button });
+            this.handleMouseUp(e);
+        };
+        
+        this._eventHandlers.contextMenu = (e) => {
+            e.preventDefault(); // Prevent default context menu
+            this.handleContextMenu(e);
+        };
+        
+        this._eventHandlers.mouseLeave = () => {
+            logger.debug('Mouse left canvas');
+            this.handleMouseLeave();
+        };
+        
+        this._eventHandlers.documentMouseUp = (e) => {
+            this.handleDocumentMouseUp(e);
+        };
+        
+        // Add event listeners with passive: false to ensure preventDefault works
+        const options = { passive: false };
+        canvas.addEventListener('mousemove', this._eventHandlers.mouseMove, options);
+        canvas.addEventListener('mousedown', this._eventHandlers.mouseDown, options);
+        canvas.addEventListener('mouseup', this._eventHandlers.mouseUp, options);
+        canvas.addEventListener('contextmenu', this._eventHandlers.contextMenu, options);
+        canvas.addEventListener('mouseleave', this._eventHandlers.mouseLeave, options);
+        document.addEventListener('mouseup', this._eventHandlers.documentMouseUp, { capture: true });
         
         // Reset selection state
         this.selectedCell = null;
@@ -78,6 +110,8 @@ export class SelectionManager {
         this.isDragging = false;
         this.lastProcessedCell = null;
         this.dragButton = null;
+        
+        logger.log('SelectionManager initialized successfully');
         
         // Make sure tooltip is in the DOM
         if (!document.body.contains(this.tooltip)) {
@@ -106,12 +140,16 @@ export class SelectionManager {
         return tooltip;
     }
     
-     /**
+    /**
      * Handle mouse movement to update tooltip and handle drag operations
      * @param {MouseEvent} event - Mouse move event
+     * @param {boolean} [forceUpdate=false] - Force update even if game is paused
      */
     handleMouseMove(event, forceUpdate = false) {
-        if (!this.canvas) return;
+        if (!this.canvas || !this.engine) {
+            logger.warn('handleMouseMove: Missing canvas or engine reference');
+            return;
+        }
 
         // Store the mouse event for tooltip positioning
         this.lastMouseEvent = event;
@@ -122,35 +160,55 @@ export class SelectionManager {
             return;
         }
 
-        const rect = this.canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
+        try {
+            // Get canvas position and size
+            const rect = this.canvas.getBoundingClientRect();
+            
+            // Calculate mouse position relative to canvas
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
 
-        // Update hovered cell
-        const cellX = Math.floor(x / this.cellSize);
-        const cellY = Math.floor(y / this.cellSize);
-        const cellChanged = !this.hoveredCell || this.hoveredCell.x !== cellX || this.hoveredCell.y !== cellY;
+            // Get camera position (if available)
+            const cameraX = (this.engine.camera && this.engine.camera.x) || 0;
+            const cameraY = (this.engine.camera && this.engine.camera.y) || 0;
 
-        if (cellChanged) {
-            this.hoveredCell = { x: cellX, y: cellY };
+            // Calculate world coordinates with camera offset
+            const worldX = Math.floor((mouseX + cameraX) / this.cellSize);
+            const worldY = Math.floor((mouseY + cameraY) / this.cellSize);
 
-            // Handle temperature adjustment if in admin mode and dragging
-            if (this.isDragging && this.onTemperatureAdjust && this.isAdmin) {
-                const cells = this.getBrushCells(this.hoveredCell.x, this.hoveredCell.y);
-                cells.forEach(cell => {
-                    this.onTemperatureAdjust(cell.x, cell.y, this.tempAdjustDirection === -1);
-                });
+            // Debug logging
+            logger.debug('Mouse move:', { 
+                screen: { x: event.clientX, y: event.clientY },
+                canvas: { x: mouseX, y: mouseY },
+                camera: { x: cameraX, y: cameraY },
+                world: { x: worldX, y: worldY },
+                cellSize: this.cellSize
+            });
+
+            // Check if cell changed
+            const cellChanged = !this.hoveredCell || 
+                              this.hoveredCell.x !== worldX || 
+                              this.hoveredCell.y !== worldY;
+
+            if (cellChanged) {
+                this.hoveredCell = { x: worldX, y: worldY };
+                logger.debug('Hovered cell changed:', this.hoveredCell);
+
+                // Handle temperature adjustment if in admin mode and dragging
+                if (this.isDragging && this.onTemperatureAdjust && this.isAdmin) {
+                    const cells = this.getBrushCells(this.hoveredCell.x, this.hoveredCell.y);
+                    cells.forEach(cell => {
+                        this.onTemperatureAdjust(cell.x, cell.y, this.tempAdjustDirection === -1);
+                    });
+                }
             }
-        }
-        
-        // Always update tooltip position if it's visible
-        if (this.tooltip && this.tooltip.isVisible && this.lastMouseEvent) {
-            this.updateTooltipPosition(this.lastMouseEvent);
-        }
-        
-        // Always update tooltip position if it's visible
-        if (this.tooltip && this.tooltip.isVisible) {
-            this.updateTooltipPosition(event);
+            
+            // Update tooltip position if it's visible
+            if (this.tooltip && this.tooltip.isVisible && this.lastMouseEvent) {
+                this.updateTooltipPosition(this.lastMouseEvent);
+            }
+        } catch (error) {
+            logger.error('Error in handleMouseMove:', error);
         }
     }
     
@@ -159,12 +217,21 @@ export class SelectionManager {
      * @param {MouseEvent} event - Mouse click event
      */
     handleClick(event) {
-        if (!this.hoveredCell) return;
+        if (!this.hoveredCell) {
+            logger.debug('handleClick: No hovered cell');
+            return;
+        }
+        
+        logger.debug('Cell clicked:', this.hoveredCell);
         
         // Handle cell selection logic here
         if (this.onCellSelected) {
             this.onCellSelected(this.hoveredCell.x, this.hoveredCell.y);
         }
+        
+        // Prevent default to avoid any browser context menu
+        event.preventDefault();
+        return false;
     }
     
     /**
@@ -327,32 +394,16 @@ export class SelectionManager {
      * @param {MouseEvent} event - The mouse up event
      */
     handleMouseUp(event) {
-        const isRightClick = event.button === 2;
-        const isDraggingWithRightButton = this.isDragging && this.dragButton === 2;
-        
-        // Only process if we were dragging and the button matches, or if it's a right-click release
-        if ((!this.isDragging || (this.dragButton !== null && event.button !== this.dragButton)) && !isRightClick) {
-            return;
+        // Only process if we were dragging
+        if (this.isDragging) {
+            logger.debug('Mouse up, resetting drag state');
+            this.isDragging = false;
+            this.lastProcessedCell = null;
+            this.dragButton = null;
         }
         
-        // For right-clicks, be extra aggressive with prevention
-        if (isRightClick || isDraggingWithRightButton) {
-            event.stopImmediatePropagation();
-            event.preventDefault();
-            this.cleanupDragState();
-            return;
-        }
-        
-        // For other mouse buttons
-        this.cleanupDragState();
-        event.stopPropagation();
-        event.preventDefault();
-        
-        // Clear any pending right-click state
-        if (this._pendingRightClick) {
-            clearTimeout(this._pendingRightClick);
-            this._pendingRightClick = null;
-        }
+        // Don't prevent default to allow click event to fire
+        return true;
     }
     
     /**
@@ -360,76 +411,45 @@ export class SelectionManager {
      * @param {MouseEvent} event - The mouse down event
      */
     handleMouseDown(event) {
-        if (!this.hoveredCell) return;
-        
-        const isRightClick = event.button === 2;
-        
-        // Always prevent default for right-clicks to avoid context menu
-        if (isRightClick) {
-            event.stopImmediatePropagation();
-            event.preventDefault();
-        } else {
-            event.stopPropagation();
-            event.preventDefault();
+        if (!this.hoveredCell) {
+            logger.debug('handleMouseDown: No hovered cell');
+            return;
         }
         
-        // Reset any existing drag state to be safe
-        this.cleanupDragState();
+        logger.debug('Mouse down on cell:', this.hoveredCell, 'Button:', event.button);
         
-        // Handle right-click for temperature decrease
-        if (isRightClick) {
-            // Clear any existing pending right-click timeout
-            if (this._pendingRightClick) {
-                clearTimeout(this._pendingRightClick);
-                this._pendingRightClick = null;
-            }
-            
-            // Set up drag state
-            this.isDragging = true;
-            this.tempAdjustDirection = -1;
-            this.lastProcessedCell = this.hoveredCell ? { ...this.hoveredCell } : null;
-            
-            // Set a safety timeout to ensure we clean up if the mouseup event is missed
-            this._pendingRightClick = setTimeout(() => {
-                if (this.isDragging) {
-                    this.cleanupDragState();
-                    try {
-                        const mouseUpEvent = new MouseEvent('mouseup', {
-                            bubbles: true,
-                            cancelable: true,
-                            button: 2,
-                            buttons: 0
-                        });
-                        document.dispatchEvent(mouseUpEvent);
-                    } catch (e) {
-                        // Silently handle any errors
-                    }
+        this.isDragging = true;
+        this.dragButton = event.button;
+        
+        // Left click or right click
+        if (event.button === 0 || event.button === 2) {
+            // For right click, we need to prevent the context menu
+            if (event.button === 2) {
+                event.preventDefault();
+                this.tempAdjustDirection = -1; // Decrease temperature
+                logger.debug('Right click detected, setting tempAdjustDirection to -1');
+                
+                // Process temperature adjustment for right click
+                if (this.onTemperatureAdjust && this.isAdmin) {
+                    const cells = this.getBrushCells(this.hoveredCell.x, this.hoveredCell.y);
+                    cells.forEach(cell => {
+                        this.onTemperatureAdjust(cell.x, cell.y, true);
+                    });
                 }
-                this._pendingRightClick = null;
-            }, 3000); // Reduced to 3 seconds for faster recovery
-            
-            return;
-        }
-        // Handle shift+left-click for temperature increase
-        if (event.shiftKey && event.button === 0) {
-            this.isDragging = true;
-            this.tempAdjustDirection = 1;
-            this.lastProcessedCell = { ...this.hoveredCell };
-            this.dragButton = 0; // Left mouse button
-            
-            // Process the initial click
-            if (this.onTemperatureAdjust) {
-                const cells = this.getBrushCells(this.hoveredCell.x, this.hoveredCell.y);
-                cells.forEach(cell => {
-                    this.onTemperatureAdjust(cell.x, cell.y, false);
-                });
+            } else {
+                // For left click, just update the selection state
+                this.handleSelection();
+                
+                // Trigger the onCellSelected callback
+                if (this.onCellSelected) {
+                    this.onCellSelected(this.hoveredCell.x, this.hoveredCell.y);
+                }
             }
-            return;
         }
-        // Handle regular left-click for selection
-        if (event.button === 0) {
-            this.handleSelection();
-        }
+        
+        // Prevent default to avoid text selection and other default behaviors
+        event.preventDefault();
+        return false;
     }
     
     handleSelection() {
@@ -558,7 +578,18 @@ export class SelectionManager {
      * @param {CanvasRenderingContext2D} ctx - The canvas context
      */
     render(ctx) {
+        if (!this.engine || !this.engine.camera) {
+            logger.warn('SelectionManager.render: Missing engine or camera reference');
+            return;
+        }
+
+        const cameraX = this.engine.camera.x || 0;
+        const cameraY = this.engine.camera.y || 0;
+
         ctx.save();
+        
+        // Apply camera transformation
+        ctx.translate(-cameraX, -cameraY);
         
         // Draw hover effect if there's a hovered cell and we're in admin mode
         if (this.hoveredCell) {

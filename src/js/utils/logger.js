@@ -34,14 +34,13 @@ class Logger {
       console.warn('Failed to create BroadcastChannel:', e);
     }
     
-    // Bind methods
+    // Initialize methods
     this.setLevel = this.setLevel.bind(this);
     this.getTimestamp = this.getTimestamp.bind(this);
     this.formatMessage = this.formatMessage.bind(this);
     this.log = this.log.bind(this);
     this.debug = this.debug.bind(this);
     this.info = this.info.bind(this);
-    this.warn = this.warn.bind(this);
     this.error = this.error.bind(this);
   }
   
@@ -183,44 +182,6 @@ class Logger {
     const timestamp = this.getTimestamp();
     const formattedMessage = this.formatMessage(level.toUpperCase(), timestamp, message, data);
     
-    // Send to diagnostics
-    if (this.diagnosticsChannel) {
-      try {
-        let messageStr = '';
-        
-        // Format the message part
-        if (message !== undefined) {
-          messageStr = typeof message === 'string' ? message : JSON.stringify(message);
-        }
-        
-        // Format the data part if it exists
-        let dataStr = '';
-        if (data !== undefined) {
-          dataStr = typeof data === 'object' ? 
-            JSON.stringify(data, (key, value) => 
-              typeof value === 'bigint' ? value.toString() : value
-            ) : 
-            String(data);
-        }
-        
-        // Combine message and data
-        const fullMessage = messageStr + (dataStr ? ' ' + dataStr : '');
-        
-        const logMessage = {
-          type: 'log',
-          data: {
-            type: level.toLowerCase(),
-            message: fullMessage,
-            timestamp: timestamp
-          }
-        };
-        
-        this.diagnosticsChannel.postMessage(logMessage);
-      } catch (e) {
-        console.warn('Failed to send log to diagnostics:', e);
-      }
-    }
-    
     // Log to console with appropriate method
     const consoleMethod = {
       'DEBUG': console.debug,
@@ -235,7 +196,71 @@ class Logger {
       args.push(data);
     }
     
+    // Call console method
     consoleMethod(...args);
+    
+    // Send to diagnostics channel if available
+    if (this.diagnosticsChannel) {
+      try {
+        // Create a clean data object to avoid circular references
+        let cleanData = data;
+        if (data instanceof Error) {
+          cleanData = {
+            message: data.message,
+            stack: data.stack,
+            name: data.name
+          };
+        } else if (data !== undefined && data !== null && typeof data === 'object') {
+          try {
+            // Try to create a clean copy of the data
+            cleanData = JSON.parse(JSON.stringify(data, (key, value) => {
+              if (value === undefined) return 'undefined';
+              if (typeof value === 'function') return '[Function]';
+              if (value instanceof Error) {
+                return {
+                  message: value.message,
+                  stack: value.stack,
+                  name: value.name
+                };
+              }
+              return value;
+            }));
+          } catch (e) {
+            cleanData = '[Unserializable data]';
+          }
+        }
+        
+        const logMessage = {
+          type: 'log',
+          data: {
+            level: level.toLowerCase(),
+            message: message,
+            data: cleanData,
+            timestamp: timestamp,
+            formatted: formattedMessage
+          }
+        };
+        
+        this.diagnosticsChannel.postMessage(logMessage);
+      } catch (e) {
+        console.warn('Failed to send log to diagnostics:', e);
+        // Fallback to simple message if detailed logging fails
+        try {
+          this.diagnosticsChannel.postMessage({
+            type: 'log',
+            data: {
+              level: level.toLowerCase(),
+              message: 'Error processing log data: ' + (e.message || String(e)),
+              timestamp: timestamp,
+              originalMessage: String(message)
+            }
+          });
+        } catch (e2) {
+          // If we can't even send the error message, give up
+          console.error('Failed to send error log to diagnostics:', e2);
+        }
+      }
+    }
   }
   
   /**
@@ -257,30 +282,27 @@ class Logger {
   }
   
   /**
-   * Log a warning message
-   * @param {string} message - The warning message
-   * @param {*} [data] - Additional data to log
-   */
-  warn(message, data) {
-    this.log('WARN', message, data);
-  }
-  
-  /**
    * Log an error message
-   * @param {string} message - The error message
-   * @param {*} [error] - The error object or additional data
+   * @param {string|Error} message - The error message or Error object
+   * @param {*} [error] - Optional error object or additional data
    */
   error(message, error) {
-    // If the error is an Error object, include its stack trace
     if (message instanceof Error) {
       this.log('ERROR', message.message, message.stack);
-    } else if (error instanceof Error) {
-      this.log('ERROR', `${message}: ${error.message}`, error.stack);
     } else if (error !== undefined) {
       this.log('ERROR', message, error);
     } else {
       this.log('ERROR', message);
     }
+  }
+  
+  /**
+   * Log a warning message
+   * @param {string} message - The warning message
+   * @param {*} [data] - Optional additional data
+   */
+  warn(message, data) {
+    this.log('WARN', message, data);
   }
 }
 

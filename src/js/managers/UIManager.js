@@ -11,12 +11,49 @@ export class UIManager {
         this.lastUpdateTime = 0;
         this.debugOverlay = null;
         
+        // Pan speed in pixels per second (increased from 200 to 400 for faster panning)
+        this.panSpeed = 400;
+        this.panDirections = {
+            up: false,
+            down: false,
+            left: false,
+            right: false
+        };
+        
         // Initialize key handlers
         this.keyHandlers = {
             'Escape': this.handleEscapeKey.bind(this),
             't': this.toggleTemperatureOverlay.bind(this),
-            'T': this.toggleTemperatureOverlay.bind(this)
+            'T': this.toggleTemperatureOverlay.bind(this),
+            'w': () => { this.panDirections.up = true; return true; },
+            'W': () => { this.panDirections.up = true; return true; },
+            's': () => { this.panDirections.down = true; return true; },
+            'S': () => { this.panDirections.down = true; return true; },
+            'a': () => { this.panDirections.left = true; return true; },
+            'A': () => { this.panDirections.left = true; return true; },
+            'd': () => { this.panDirections.right = true; return true; },
+            'D': () => { this.panDirections.right = true; return true; }
         };
+        
+        // Add keyup handlers
+        this.keyUpHandlers = {
+            'w': () => { this.panDirections.up = false; },
+            'W': () => { this.panDirections.up = false; },
+            's': () => { this.panDirections.down = false; },
+            'S': () => { this.panDirections.down = false; },
+            'a': () => { this.panDirections.left = false; },
+            'A': () => { this.panDirections.left = false; },
+            'd': () => { this.panDirections.right = false; },
+            'D': () => { this.panDirections.right = false; }
+        };
+        
+        // Add keyup event listener
+        document.addEventListener('keyup', (e) => {
+            const handler = this.keyUpHandlers[e.key];
+            if (handler) {
+                handler();
+            }
+        });
         
         // Initialize empty admin key bindings
         this.adminKeyHandlers = {};
@@ -24,6 +61,7 @@ export class UIManager {
         // Bind methods
         this.handleEscapeKey = this.handleEscapeKey.bind(this);
         this.toggleTemperatureOverlay = this.toggleTemperatureOverlay.bind(this);
+        this.update = this.update.bind(this);
         
         // Store saveManager reference with error handling
         if (app && app.saveManager) {
@@ -110,6 +148,31 @@ export class UIManager {
             logger.warn('Temperature manager not available');
         }
         return true;
+    }
+    
+    /**
+     * Update method called every frame to handle continuous actions like camera movement
+     * @param {number} deltaTime - Time since last frame in seconds
+     */
+    update(deltaTime) {
+        // Skip if no engine or camera available
+        if (!this.app?.engine?.camera) return;
+        
+        const camera = this.app.engine.camera;
+        const moveAmount = this.panSpeed * deltaTime;
+        
+        // Calculate movement vector
+        let dx = 0, dy = 0;
+        
+        if (this.panDirections.up) dy -= moveAmount;
+        if (this.panDirections.down) dy += moveAmount;
+        if (this.panDirections.left) dx -= moveAmount;
+        if (this.panDirections.right) dx += moveAmount;
+        
+        // Apply movement to camera
+        if (dx !== 0 || dy !== 0) {
+            camera.move(dx, dy);
+        }
     }
     
     /**
@@ -354,10 +417,14 @@ export class UIManager {
         }
         this.lastUpdateTime = time;
         
-        // Get temperature or show N/A if no cell is selected
+        // Get cell info or show N/A if no cell is selected
         let infoText = 'No cell selected';
         if (cellInfo && cellInfo.temp !== undefined) {
-            infoText = `Temp: ${cellInfo.temp.toFixed(1)}°C`;
+            const cellType = cellInfo.type || 'unknown';
+            infoText = `
+                Temp: ${cellInfo.temp.toFixed(1)}°C<br>
+                Type: ${cellType}
+            `;
         }
         
         // Update overlay content
